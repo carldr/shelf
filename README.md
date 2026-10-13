@@ -30,7 +30,7 @@ There is no client secret: Shelf uses the Authorization Code flow with PKCE.
 2. Click **Create app**.
 3. Enter any app name and description.
 4. Add this Redirect URI: `http://127.0.0.1:43821/callback`.
-5. Under **Which API/SDKs are you planning to use?**, select **Web API**.
+5. Select **Web API** among the APIs the app uses.
 6. Accept the terms and click **Save**.
 7. Open the app's **Settings** and copy the **Client ID**.
 8. To let someone else use your app, add their name and Spotify email under **User Management**.
