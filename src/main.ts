@@ -90,7 +90,7 @@ async function play_album_on_spotify(saved_album: SavedAlbum): Promise<void> {
       hostname: (await hostname()) ?? "",
       // Hidden and in the background on macOS; elsewhere, or if that fails, through the spotify: URI.
       launch_spotify_app: (spotify_album_uri) =>
-        invoke("launch_spotify_app_in_background").catch(() => openUrl(spotify_album_uri)),
+        invoke<void>("launch_spotify_app_in_background").catch(() => openUrl(spotify_album_uri)),
       wait_milliseconds: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
     });
     // Spotify takes a moment to report the new album.
