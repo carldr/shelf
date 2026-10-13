@@ -22,6 +22,10 @@ tauri-plugin-opener = "2"
 tauri-plugin-os = "2"
 image = { version = "0.25", default-features = false, features = ["jpeg"] }
 
-# image decodes JPEGs about 30 times slower without optimisation.
+# image decodes and resizes JPEGs about 15 times slower without optimisation. Its resize and
+# encode functions are generic, so they compile into this crate, which needs optimising too.
+[profile.dev]
+opt-level = 3
+
 [profile.dev.package."*"]
 opt-level = 3
