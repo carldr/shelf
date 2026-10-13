@@ -32,8 +32,20 @@ function album_cover_file_name(cover_image_url: string): string {
   return `${cover_image_url.slice(cover_image_url.lastIndexOf("/") + 1)}_large.jpg`;
 }
 
-function album_cover_relative_path(cover_image_url: string): string {
-  return `${ALBUM_COVERS_DIRECTORY_NAME}/${album_cover_file_name(cover_image_url)}`;
+/**
+ * The shelf shows this small copy of a cover the moment an album starts to open, and swaps in
+ * the full cover once the album has stayed in the middle. Loading a full cover for every album
+ * that passes the middle during a flick cannot keep up with 60 frames per second.
+ */
+export const ALBUM_COVER_THUMBNAIL_SIZE_PX = 256;
+const ALBUM_COVER_THUMBNAIL_JPEG_QUALITY = 0.88;
+
+function album_cover_thumbnail_file_name(cover_image_url: string): string {
+  return `${cover_image_url.slice(cover_image_url.lastIndexOf("/") + 1)}_thumbnail_${ALBUM_COVER_THUMBNAIL_SIZE_PX}.jpg`;
+}
+
+function album_cover_relative_path(cover_file_name: string): string {
+  return `${ALBUM_COVERS_DIRECTORY_NAME}/${cover_file_name}`;
 }
 
 let album_covers_directory_path: string | null = null;
@@ -43,41 +55,42 @@ export async function resolve_album_covers_directory_path(): Promise<void> {
   album_covers_directory_path = await join(await appDataDir(), ALBUM_COVERS_DIRECTORY_NAME);
 }
 
-/** An asset-protocol URL that the webview can load as an image, or null when the album has no cover. */
-function album_cover_file_url(saved_album: SavedAlbum): string | null {
+/**
+ * Reads a file from the covers directory over the asset protocol and decodes it, scaled to
+ * `size_px` square when given. createImageBitmap decodes off the main thread.
+ */
+async function load_cover_file_bitmap(cover_file_name: string, size_px?: number): Promise<ImageBitmap> {
   if (!album_covers_directory_path) {
     throw new Error("resolve_album_covers_directory_path has not run.");
   }
-  if (!saved_album.cover_image_url) {
-    return null;
-  }
-  return convertFileSrc(`${album_covers_directory_path}/${album_cover_file_name(saved_album.cover_image_url)}`);
-}
-
-/**
- * Reads the album's cached cover and decodes it at `size_px` square.
- * createImageBitmap decodes and scales off the main thread, so scrolling does not stall.
- */
-export async function load_cached_album_cover_bitmap(saved_album: SavedAlbum, size_px: number): Promise<ImageBitmap | null> {
-  const cover_file_url = album_cover_file_url(saved_album);
-  if (!cover_file_url) {
-    return null;
-  }
-  const cover_response = await fetch(cover_file_url);
+  const cover_response = await fetch(convertFileSrc(`${album_covers_directory_path}/${cover_file_name}`));
   if (!cover_response.ok) {
     throw new Error(`Cover file request failed (${cover_response.status})`);
   }
-  return createImageBitmap(await cover_response.blob(), {
-    resizeWidth: size_px,
-    resizeHeight: size_px,
-    resizeQuality: "high",
-  });
+  const cover_blob = await cover_response.blob();
+  return size_px
+    ? createImageBitmap(cover_blob, { resizeWidth: size_px, resizeHeight: size_px, resizeQuality: "high" })
+    : createImageBitmap(cover_blob);
+}
+
+/** Reads the album's cached full cover, scaled to `size_px` square. Null when the album has no cover. */
+export async function load_cached_album_cover_bitmap(saved_album: SavedAlbum, size_px: number): Promise<ImageBitmap | null> {
+  return saved_album.cover_image_url
+    ? load_cover_file_bitmap(album_cover_file_name(saved_album.cover_image_url), size_px)
+    : null;
+}
+
+/** Reads the album's cached thumbnail. Null when the album has no cover. */
+export async function load_cached_album_cover_thumbnail_bitmap(saved_album: SavedAlbum): Promise<ImageBitmap | null> {
+  return saved_album.cover_image_url
+    ? load_cover_file_bitmap(album_cover_thumbnail_file_name(saved_album.cover_image_url))
+    : null;
 }
 
 /**
- * Downloads each album's cover once into the covers directory and samples its dominant colour.
- * Covers already on disk are not downloaded again. Files that no saved album uses are deleted.
- * Returns the albums with `cover_dominant_colour` filled in where a cover exists.
+ * Downloads each album's cover once into the covers directory, writes its thumbnail, and samples
+ * its dominant colour. Covers already on disk are not downloaded again. Files that no saved album
+ * uses are deleted. Returns the albums with `cover_dominant_colour` filled in where a cover exists.
  */
 export async function cache_album_covers(
   saved_albums: readonly SavedAlbum[],
@@ -110,9 +123,13 @@ async function cache_album_cover(saved_album: SavedAlbum): Promise<SavedAlbum> {
   if (!saved_album.cover_image_url) {
     return saved_album;
   }
-  const cover_relative_path = album_cover_relative_path(saved_album.cover_image_url);
+  const cover_relative_path = album_cover_relative_path(album_cover_file_name(saved_album.cover_image_url));
+  const thumbnail_relative_path = album_cover_relative_path(
+    album_cover_thumbnail_file_name(saved_album.cover_image_url),
+  );
   const cover_is_cached = await exists(cover_relative_path, { baseDir: BaseDirectory.AppData });
-  if (cover_is_cached && saved_album.cover_dominant_colour) {
+  const thumbnail_is_cached = await exists(thumbnail_relative_path, { baseDir: BaseDirectory.AppData });
+  if (cover_is_cached && thumbnail_is_cached && saved_album.cover_dominant_colour) {
     return saved_album;
   }
 
@@ -123,10 +140,31 @@ async function cache_album_cover(saved_album: SavedAlbum): Promise<SavedAlbum> {
     cover_image_bytes = await download_largest_cover_image(saved_album.cover_image_url);
     await writeFile(cover_relative_path, cover_image_bytes, { baseDir: BaseDirectory.AppData });
   }
-  const cover_dominant_colour = await compute_dominant_colour_from_image_blob(
-    new Blob([cover_image_bytes as BlobPart], { type: "image/jpeg" }),
-  );
+  const cover_image_blob = new Blob([cover_image_bytes as BlobPart], { type: "image/jpeg" });
+  if (!thumbnail_is_cached) {
+    await writeFile(thumbnail_relative_path, await encode_cover_thumbnail(cover_image_blob), {
+      baseDir: BaseDirectory.AppData,
+    });
+  }
+  const cover_dominant_colour =
+    saved_album.cover_dominant_colour ?? (await compute_dominant_colour_from_image_blob(cover_image_blob));
   return { ...saved_album, cover_dominant_colour };
+}
+
+async function encode_cover_thumbnail(cover_image_blob: Blob): Promise<Uint8Array> {
+  const thumbnail_bitmap = await createImageBitmap(cover_image_blob, {
+    resizeWidth: ALBUM_COVER_THUMBNAIL_SIZE_PX,
+    resizeHeight: ALBUM_COVER_THUMBNAIL_SIZE_PX,
+    resizeQuality: "high",
+  });
+  const thumbnail_canvas = new OffscreenCanvas(ALBUM_COVER_THUMBNAIL_SIZE_PX, ALBUM_COVER_THUMBNAIL_SIZE_PX);
+  thumbnail_canvas.getContext("2d")!.drawImage(thumbnail_bitmap, 0, 0);
+  thumbnail_bitmap.close();
+  const thumbnail_blob = await thumbnail_canvas.convertToBlob({
+    type: "image/jpeg",
+    quality: ALBUM_COVER_THUMBNAIL_JPEG_QUALITY,
+  });
+  return new Uint8Array(await thumbnail_blob.arrayBuffer());
 }
 
 async function download_largest_cover_image(cover_image_url: string): Promise<Uint8Array> {
@@ -147,7 +185,12 @@ async function download_largest_cover_image(cover_image_url: string): Promise<Ui
 async function delete_unused_cover_files(saved_albums: readonly SavedAlbum[]): Promise<void> {
   const used_cover_file_names = new Set(
     saved_albums.flatMap((saved_album) =>
-      saved_album.cover_image_url ? [album_cover_file_name(saved_album.cover_image_url)] : [],
+      saved_album.cover_image_url
+        ? [
+            album_cover_file_name(saved_album.cover_image_url),
+            album_cover_thumbnail_file_name(saved_album.cover_image_url),
+          ]
+        : [],
     ),
   );
   const cover_directory_entries = await readDir(ALBUM_COVERS_DIRECTORY_NAME, { baseDir: BaseDirectory.AppData });
