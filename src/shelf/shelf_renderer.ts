@@ -30,6 +30,10 @@ const JEWEL_CASE_CAP_HEIGHT_RATIO = 0.035;
 /** The clear plastic rail on each side of the insert, as a share of the spine width. */
 const JEWEL_CASE_RAIL_WIDTH_RATIO = 0.06;
 const JEWEL_CASE_BACK_COLOUR = 0x1c1c1f;
+
+/** Spotify green. */
+const NOW_PLAYING_MARKER_COLOUR = 0x1ed760;
+const NOW_PLAYING_MARKER_HEIGHT = 4;
 const SPINE_LABEL_FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif";
 const SPINE_LABEL_ARTIST_FONT_NAME = "shelf_spine_label_artist_font";
 const SPINE_LABEL_ALBUM_NAME_FONT_NAME = "shelf_spine_label_album_name_font";
@@ -127,6 +131,10 @@ export class ShelfRenderer {
   private readonly application = new Application();
   private readonly shelf_content = new Container();
   private readonly shelf_ledge = new Graphics();
+  /** A green bar on the ledge under the album Spotify is playing. */
+  private readonly now_playing_marker = new Sprite(Texture.WHITE);
+  private now_playing_album_index = -1;
+  private album_indexes_by_spotify_album_id = new Map<string, number>();
   private readonly cover_texture_cache = new ShelfCoverTextureCache();
   private readonly displays_by_album_index = new Map<number, ShelfAlbumDisplay>();
   private readonly unused_displays: ShelfAlbumDisplay[] = [];
@@ -163,7 +171,9 @@ export class ShelfRenderer {
       preference: "webgl",
     });
     this.options.host_element.appendChild(this.application.canvas);
-    this.application.stage.addChild(this.shelf_ledge, this.shelf_content);
+    this.now_playing_marker.tint = NOW_PLAYING_MARKER_COLOUR;
+    this.now_playing_marker.visible = false;
+    this.application.stage.addChild(this.shelf_ledge, this.shelf_content, this.now_playing_marker);
 
     this.application.renderer.on("resize", () => this.update_geometry());
     this.update_geometry();
@@ -172,7 +182,12 @@ export class ShelfRenderer {
   }
 
   set_albums(saved_albums: readonly SavedAlbum[]): void {
+    const now_playing_spotify_album_id = this.saved_albums[this.now_playing_album_index]?.spotify_album_id ?? null;
     this.saved_albums = saved_albums;
+    this.album_indexes_by_spotify_album_id = new Map(
+      saved_albums.map((saved_album, album_index) => [saved_album.spotify_album_id, album_index]),
+    );
+    this.set_now_playing_album(now_playing_spotify_album_id);
     this.spine_label_texts_by_album_index = [];
     this.open_amounts_by_album_index.clear();
     for (const [album_index, display] of this.displays_by_album_index) {
@@ -180,6 +195,27 @@ export class ShelfRenderer {
     }
     this.scroll_target_x = compute_scroll_x_centring_album(0, this.application.screen.width, this.shelf_geometry);
     this.scroll_x = this.scroll_target_x;
+  }
+
+  /** Marks the album Spotify is playing, or clears the mark for null or an album not in the library. */
+  set_now_playing_album(spotify_album_id: string | null): void {
+    this.now_playing_album_index = spotify_album_id
+      ? (this.album_indexes_by_spotify_album_id.get(spotify_album_id) ?? -1)
+      : -1;
+  }
+
+  /** Puts the album in the middle without scrolling to it. Returns false if it is not in the library. */
+  jump_to_album(spotify_album_id: string): boolean {
+    const album_index = this.album_indexes_by_spotify_album_id.get(spotify_album_id);
+    if (album_index === undefined) {
+      return false;
+    }
+    this.scroll_album_to_centre(album_index);
+    this.scroll_x = this.scroll_target_x;
+    // Open it at once, so the shelf appears with the album already out.
+    this.open_amounts_by_album_index.clear();
+    this.open_amounts_by_album_index.set(album_index, 1);
+    return true;
   }
 
   /** Scrolls, with easing, so that `scroll_target_x` is the left edge of the view. */
@@ -345,6 +381,19 @@ export class ShelfRenderer {
     }
     this.drawn_opening_albums = opening_albums;
     this.drawn_album_index_range = { first_album_index: first_visible_index, last_album_index: last_visible_index };
+    this.position_now_playing_marker(opening_albums);
+  }
+
+  private position_now_playing_marker(opening_albums: OpeningAlbum[]): void {
+    this.now_playing_marker.visible = this.displays_by_album_index.has(this.now_playing_album_index);
+    if (!this.now_playing_marker.visible) {
+      return;
+    }
+    const album_rect = compute_album_rect_x(this.now_playing_album_index, opening_albums, this.shelf_geometry);
+    this.now_playing_marker.x = album_rect.left_x - this.scroll_x;
+    this.now_playing_marker.y = SHELF_TOP_PADDING + this.shelf_geometry.cover_size;
+    this.now_playing_marker.width = album_rect.width;
+    this.now_playing_marker.height = NOW_PLAYING_MARKER_HEIGHT;
   }
 
   private update_open_amounts(frame_duration_ms: number): OpeningAlbum[] {
