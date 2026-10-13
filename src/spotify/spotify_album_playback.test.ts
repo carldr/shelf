@@ -22,8 +22,17 @@ describe("choose_spotify_playback_device", () => {
     expect(choose_spotify_playback_device([phone, other_mac, this_mac], "Office-Computer.local")).toBe("mac");
   });
 
-  it("returns null when nothing is active and no computer matches", () => {
-    expect(choose_spotify_playback_device([phone, other_mac], "Office-Computer.local")).toBeNull();
+  it("ignores the hostname's domain", () => {
+    const office-computer: SpotifyPlaybackDevice = { id: "office-computer", name: "office-computer", type: "Computer", is_active: false };
+    expect(choose_spotify_playback_device([phone, other_mac, office-computer], "office-computer.example.net")).toBe("office-computer");
+  });
+
+  it("uses the only computer when no name matches", () => {
+    expect(choose_spotify_playback_device([phone, other_mac], "office-computer.example.net")).toBe("laptop");
+  });
+
+  it("returns null when nothing is active, no name matches and there are several computers", () => {
+    expect(choose_spotify_playback_device([phone, other_mac, this_mac], "office-computer.example.net")).toBeNull();
   });
 });
 

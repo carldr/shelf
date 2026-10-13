@@ -20,18 +20,21 @@ export interface SpotifyAlbumPlaybackDependencies {
   wait_milliseconds: (milliseconds: number) => Promise<void>;
 }
 
-/** Lowercase letters and digits only, so "Office Computer" matches "Office-Computer.local". */
+/** Lowercase letters and digits only, so "Office Computer" matches "Office-Computer". */
 function normalise_device_name(device_name: string): string {
-  return device_name
-    .toLowerCase()
-    .replace(/\.local$/, "")
-    .replace(/[^a-z0-9]/g, "");
+  return device_name.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/** The hostname up to its first dot: "office-computer.example.net" and "Office-Computer.local" both lose their domain. */
+function hostname_without_domain(hostname: string): string {
+  return hostname.split(".")[0];
 }
 
 /**
  * The active device if there is one, otherwise the Spotify app on this computer.
- * The Spotify desktop app names its device after the computer, so the names are compared
- * with punctuation and the ".local" suffix removed.
+ * The Spotify desktop app names its device after the computer, so the device name is compared
+ * with the hostname without its domain, ignoring case and punctuation. When no name matches
+ * and there is only one computer, that computer is used.
  */
 export function choose_spotify_playback_device(
   spotify_playback_devices: readonly SpotifyPlaybackDevice[],
@@ -41,11 +44,13 @@ export function choose_spotify_playback_device(
   if (active_device) {
     return active_device.id;
   }
-  const normalised_hostname = normalise_device_name(hostname);
-  const this_computer = spotify_playback_devices.find(
-    (device) => device.type === "Computer" && device.id && normalise_device_name(device.name) === normalised_hostname,
-  );
-  return this_computer?.id ?? null;
+  const computers = spotify_playback_devices.filter((device) => device.type === "Computer" && device.id);
+  const normalised_hostname = normalise_device_name(hostname_without_domain(hostname));
+  const this_computer = computers.find((device) => normalise_device_name(device.name) === normalised_hostname);
+  if (this_computer) {
+    return this_computer.id;
+  }
+  return computers.length === 1 ? computers[0].id : null;
 }
 
 async function fetch_spotify_playback_devices(
