@@ -2,7 +2,7 @@ mod album_cover_thumbnail_and_colour;
 mod oauth_loopback_callback_server;
 mod spotify_app_launcher;
 mod spotify_refresh_token_keychain;
-mod tray_menu_and_window;
+mod tray_icon_and_window;
 
 pub fn run() {
     tauri::Builder::default()
@@ -14,11 +14,12 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
-            tray_menu_and_window::install_tray_icon_and_window_behaviour(app)?;
+            tray_icon_and_window::install_tray_icon_and_window_behaviour(app)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            tray_menu_and_window::hide_shelf_window_command,
+            tray_icon_and_window::hide_shelf_window_command,
+            tray_icon_and_window::quit_shelf_command,
             spotify_refresh_token_keychain::save_spotify_refresh_token,
             spotify_refresh_token_keychain::load_spotify_refresh_token,
             spotify_refresh_token_keychain::delete_spotify_refresh_token,

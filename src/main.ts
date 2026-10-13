@@ -50,8 +50,6 @@ document.addEventListener("keydown", (keyboard_event) => {
   }
 });
 
-void listen("tray_menu_open_settings", () => show_spotify_connection_view(null));
-void listen("tray_menu_refresh_library", () => void sync_library());
 void listen("shelf_window_shown", () => void show_shelf_window_contents());
 void listen("shelf_window_hidden", () => {
   shelf_view?.pause();
@@ -191,7 +189,12 @@ function show_spotify_connection_view(status_message: string | null): void {
             await save_app_settings(app_settings);
             await show_demo_library();
           },
+    on_quit: quit_shelf,
   });
+}
+
+function quit_shelf(): void {
+  void invoke("quit_shelf_command");
 }
 
 /** Shows the generated library. It lives in memory only; nothing is written to albums.json. */
@@ -212,6 +215,7 @@ async function show_library_view(): Promise<void> {
     },
     on_refresh_library: () => void sync_library(),
     on_open_settings: () => show_spotify_connection_view(null),
+    on_quit: quit_shelf,
     on_album_click: (saved_album) => void play_album_on_spotify(saved_album),
     load_cover_bitmap: (saved_album, size_px) =>
       app_settings.demo_mode_enabled

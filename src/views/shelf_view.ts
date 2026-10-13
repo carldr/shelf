@@ -7,6 +7,7 @@ export interface ShelfViewOptions {
   on_sort_order_change: (saved_album_sort_order: SavedAlbumSortOrder) => void;
   on_refresh_library: () => void;
   on_open_settings: () => void;
+  on_quit: () => void;
   on_album_click: (saved_album: SavedAlbum) => void;
   /** Cached Spotify covers, or generated covers in demo mode. */
   load_cover_bitmap: (saved_album: SavedAlbum, size_px: number) => Promise<ImageBitmap | null>;
@@ -59,6 +60,7 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
         <select class="shelf_view_sort_order" aria-label="Sort order"></select>
         <button type="button" class="shelf_view_refresh_button" title="Refresh library">Refresh</button>
         <button type="button" class="shelf_view_settings_button" title="Settings">Settings</button>
+        <button type="button" class="shelf_view_quit_button" title="Quit Shelf">Quit</button>
       </header>
       <div class="shelf_view_canvas_host">
         <p class="shelf_view_message" role="alert" hidden></p>
@@ -81,13 +83,15 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
   );
   container.querySelector(".shelf_view_refresh_button")!.addEventListener("click", options.on_refresh_library);
   container.querySelector(".shelf_view_settings_button")!.addEventListener("click", options.on_open_settings);
+  container.querySelector(".shelf_view_quit_button")!.addEventListener("click", options.on_quit);
 
   const message_element = container.querySelector<HTMLElement>(".shelf_view_message")!;
   let message_timer: ReturnType<typeof setTimeout> | undefined;
   const sync_overlay_element = container.querySelector<HTMLElement>(".shelf_view_sync_overlay")!;
   const sync_progress_element = container.querySelector<HTMLElement>(".shelf_view_sync_progress")!;
   const toolbar_controls = container.querySelectorAll<HTMLButtonElement | HTMLSelectElement>(
-    ".shelf_view_toolbar button, .shelf_view_toolbar select",
+    // Quit stays enabled during a sync.
+    ".shelf_view_toolbar button:not(.shelf_view_quit_button), .shelf_view_toolbar select",
   );
   let sync_in_progress = false;
   let window_shown = true;

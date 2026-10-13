@@ -1,15 +1,10 @@
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{App, AppHandle, Emitter, Manager, PhysicalPosition, Rect, WebviewWindow, WindowEvent};
 
 pub const SHELF_WINDOW_LABEL: &str = "shelf";
-
-const MENU_ITEM_REFRESH_LIBRARY: &str = "refresh_library";
-const MENU_ITEM_OPEN_SETTINGS: &str = "open_settings";
-const MENU_ITEM_QUIT: &str = "quit";
 
 /// Gap in physical pixels between the bottom of the menu bar and the top of the window.
 const WINDOW_GAP_BELOW_TRAY_ICON: f64 = 6.0;
@@ -36,22 +31,12 @@ pub fn install_tray_icon_and_window_behaviour(app: &mut App) -> tauri::Result<()
         _ => {}
     });
 
-    let tray_menu = Menu::with_items(
-        app,
-        &[
-            &MenuItem::with_id(app, MENU_ITEM_REFRESH_LIBRARY, "Refresh library", true, None::<&str>)?,
-            &MenuItem::with_id(app, MENU_ITEM_OPEN_SETTINGS, "Settings…", true, None::<&str>)?,
-            &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(app, MENU_ITEM_QUIT, "Quit Shelf", true, Some("CmdOrCtrl+Q"))?,
-        ],
-    )?;
-
+    // The tray icon has no menu: a left click toggles the window, and Refresh, Settings and
+    // Quit are in the window. A right click does nothing.
     let shelf_tray_icon = TrayIconBuilder::with_id("shelf_tray_icon")
         .icon(tauri::include_image!("icons/tray_icon_template.png"))
         .icon_as_template(true)
         .tooltip("Shelf")
-        .menu(&tray_menu)
-        .show_menu_on_left_click(false)
         .on_tray_icon_event(|tray_icon, tray_icon_event| {
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
@@ -62,17 +47,6 @@ pub fn install_tray_icon_and_window_behaviour(app: &mut App) -> tauri::Result<()
             {
                 toggle_shelf_window(tray_icon.app_handle(), rect);
             }
-        })
-        .on_menu_event(|app_handle, menu_event| match menu_event.id().as_ref() {
-            MENU_ITEM_REFRESH_LIBRARY => {
-                let _ = app_handle.emit("tray_menu_refresh_library", ());
-            }
-            MENU_ITEM_OPEN_SETTINGS => {
-                show_shelf_window(app_handle);
-                let _ = app_handle.emit("tray_menu_open_settings", ());
-            }
-            MENU_ITEM_QUIT => app_handle.exit(0),
-            _ => {}
         })
         .build(app)?;
 
@@ -118,6 +92,12 @@ fn show_shelf_window(app_handle: &AppHandle) {
     let _ = window.show();
     let _ = window.set_focus();
     let _ = app_handle.emit("shelf_window_shown", ());
+}
+
+/// Quits Shelf from the Quit button in the window.
+#[tauri::command]
+pub fn quit_shelf_command(app_handle: AppHandle) {
+    app_handle.exit(0);
 }
 
 /// Lets the frontend hide the window (Esc) through the same path as blur and the tray icon.

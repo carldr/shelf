@@ -68,14 +68,14 @@ pnpm tauri dev
 | Click a spine | Brings that album to the middle. |
 | Click the open album | Plays it in Spotify. |
 | Esc, or click elsewhere | Closes the shelf. |
-| Right-click the tray icon | Shows Refresh library, Settings and Quit. |
+| Refresh, Settings, Quit | The buttons at the top of the shelf. |
 
 When the shelf opens, the album Spotify is playing is in the middle, and a green bar on the ledge marks it.
 
 ## How it works
 
 1. **Sign-in.** Shelf opens Spotify's consent page in your browser. A small server on `127.0.0.1:43821` receives the redirect. Shelf exchanges the code for tokens, stores the refresh token in the macOS Keychain, and keeps the access token in memory only.
-2. **Library sync.** Shelf reads your saved albums from `GET /me/albums`, 10 at a time, because Development Mode allows no more per page. It syncs on launch when the stored library is older than 6 hours, and when you choose **Refresh library**. When Spotify answers 429, Shelf waits for the time in `Retry-After`.
+2. **Library sync.** Shelf reads your saved albums from `GET /me/albums`, 10 at a time, because Development Mode allows no more per page. It syncs on launch when the stored library is older than 6 hours, and when you click **Refresh**. When Spotify answers 429, Shelf waits for the time in `Retry-After`.
 3. **Cover cache.** Shelf downloads each cover once. It asks Spotify's image server for the 2000 px version, and falls back to the 640 px version that the Web API lists. The Rust side then decodes each new cover once, writes a 256 px thumbnail, and samples the dominant colour for the spine. While a sync runs, a spinner covers the shelf.
 4. **The shelf.** PixiJS draws the shelf with WebGL. Only the albums on screen have display objects, so a library of 1,000 albums scrolls at 60 frames per second. An opening album shows its thumbnail at once. When an album stays in the middle for 100 ms, its full cover loads and fades in over the thumbnail.
 5. **Playing.** A click sends `PUT /me/player/play` with the album. Shelf picks the active Spotify device, or else the Spotify app on this Mac. If neither is available, Shelf opens the album in Spotify, waits for this Mac to appear as a device, and then plays.
@@ -121,7 +121,8 @@ src/                                   TypeScript frontend
     spotify_connection_view.ts         First-run screen and Settings
   demo/                                Generated demo library and covers
 src-tauri/src/                         Rust
-  tray_menu_and_window.rs              Tray icon, menu, window placement and hiding
+  tray_icon_and_window.rs              Tray icon, window placement and hiding, Quit
+  spotify_app_launcher.rs              Starts Spotify hidden when no device is available
   oauth_loopback_callback_server.rs    Receives the sign-in redirect
   spotify_refresh_token_keychain.rs    Keychain storage of the refresh token
   album_cover_thumbnail_and_colour.rs  Cover thumbnails and spine colours
