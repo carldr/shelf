@@ -14,8 +14,8 @@ import { choose_spine_label_colour, fit_spine_label_texts, parse_hex_colour } fr
 const SHELF_TOP_PADDING = 6;
 const SHELF_LEDGE_HEIGHT = 8;
 const SHELF_EDGE_PADDING = 12;
-/** A CD jewel case is 10.4 mm deep and 142 mm wide; a wider spine keeps the label readable. */
-const SPINE_WIDTH_TO_COVER_SIZE_RATIO = 0.12;
+/** A CD jewel case spine is 10.4 mm wide and 125 mm tall. */
+const SPINE_WIDTH_TO_COVER_SIZE_RATIO = 10.4 / 125;
 
 const SPINE_LABEL_FONT_SIZE = 11;
 const SPINE_LABEL_PADDING_ALONG_SPINE = 8;
