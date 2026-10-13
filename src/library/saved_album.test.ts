@@ -1,0 +1,131 @@
+import { describe, expect, it } from "vitest";
+import { compute_dominant_colour_from_rgba_pixels } from "./album_dominant_colour";
+import { convert_spotify_saved_album_item, type SavedAlbum, type SpotifySavedAlbumItem } from "./saved_album";
+import { sort_saved_albums } from "./saved_album_sort_order";
+import { fetch_all_saved_albums } from "./saved_albums_sync";
+
+function create_spotify_saved_album_item(album_id: string, overrides: Partial<SpotifySavedAlbumItem["album"]> = {}) {
+  return {
+    added_at: "2024-01-01T00:00:00Z",
+    album: {
+      id: album_id,
+      uri: `spotify:album:${album_id}`,
+      name: `Album ${album_id}`,
+      release_date: "1999-05-01",
+      artists: [{ name: "Artist" }],
+      images: [],
+      ...overrides,
+    },
+  };
+}
+
+function create_saved_album(overrides: Partial<SavedAlbum>): SavedAlbum {
+  return {
+    spotify_album_id: "id",
+    spotify_album_uri: "spotify:album:id",
+    album_name: "Album",
+    artist_names: "Artist",
+    release_year: 2000,
+    added_at: "2024-01-01T00:00:00Z",
+    cover_image_url: null,
+    cover_dominant_colour: null,
+    ...overrides,
+  };
+}
+
+describe("convert_spotify_saved_album_item", () => {
+  it("joins artists, reads the year and picks the image closest to 300 px", () => {
+    const saved_album = convert_spotify_saved_album_item(
+      create_spotify_saved_album_item("a1", {
+        artists: [{ name: "Daft Punk" }, { name: "Pharrell Williams" }],
+        release_date: "2013",
+        images: [
+          { url: "https://i.scdn.co/640", width: 640, height: 640 },
+          { url: "https://i.scdn.co/300", width: 300, height: 300 },
+          { url: "https://i.scdn.co/64", width: 64, height: 64 },
+        ],
+      }),
+    );
+    expect(saved_album).toMatchObject({
+      spotify_album_id: "a1",
+      spotify_album_uri: "spotify:album:a1",
+      artist_names: "Daft Punk, Pharrell Williams",
+      release_year: 2013,
+      cover_image_url: "https://i.scdn.co/300",
+      cover_dominant_colour: null,
+    });
+  });
+
+  it("gives a null year for Spotify's 0000 release date and a null cover for no images", () => {
+    const saved_album = convert_spotify_saved_album_item(create_spotify_saved_album_item("a2", { release_date: "0000" }));
+    expect(saved_album.release_year).toBeNull();
+    expect(saved_album.cover_image_url).toBeNull();
+  });
+});
+
+describe("fetch_all_saved_albums", () => {
+  it("follows next links until the last page and reports progress", async () => {
+    const pages: Record<string, { items: SpotifySavedAlbumItem[]; next: string | null; total: number }> = {
+      "/me/albums?limit=10&offset=0": {
+        items: [create_spotify_saved_album_item("a1"), create_spotify_saved_album_item("a2")],
+        next: "https://api.spotify.com/v1/me/albums?offset=2&limit=10",
+        total: 3,
+      },
+      "https://api.spotify.com/v1/me/albums?offset=2&limit=10": {
+        items: [create_spotify_saved_album_item("a3")],
+        next: null,
+        total: 3,
+      },
+    };
+    const progress_reports: [number, number][] = [];
+    const saved_albums = await fetch_all_saved_albums(
+      { get_json: async <ResponseBody>(url: string) => pages[url] as ResponseBody },
+      (fetched_album_count, total_album_count) => progress_reports.push([fetched_album_count, total_album_count]),
+    );
+    expect(saved_albums.map((saved_album) => saved_album.spotify_album_id)).toEqual(["a1", "a2", "a3"]);
+    expect(progress_reports).toEqual([
+      [2, 3],
+      [3, 3],
+    ]);
+  });
+});
+
+describe("sort_saved_albums", () => {
+  const saved_albums = [
+    create_saved_album({ spotify_album_id: "beatles", artist_names: "The Beatles", release_year: 1969, added_at: "2024-03-01T00:00:00Z" }),
+    create_saved_album({ spotify_album_id: "abba", artist_names: "ABBA", release_year: 1976, added_at: "2024-01-01T00:00:00Z" }),
+    create_saved_album({ spotify_album_id: "unknown_year", artist_names: "Cocteau Twins", release_year: null, added_at: "2024-02-01T00:00:00Z" }),
+  ];
+  const sorted_ids = (sort_order: Parameters<typeof sort_saved_albums>[1]) =>
+    sort_saved_albums(saved_albums, sort_order).map((saved_album) => saved_album.spotify_album_id);
+
+  it("puts the most recently added first", () => {
+    expect(sorted_ids("recently_added")).toEqual(["beatles", "unknown_year", "abba"]);
+  });
+
+  it("files artists without a leading 'The'", () => {
+    expect(sorted_ids("artist_a_to_z")).toEqual(["abba", "beatles", "unknown_year"]);
+  });
+
+  it("puts the oldest release first and unknown years last", () => {
+    expect(sorted_ids("release_year")).toEqual(["beatles", "abba", "unknown_year"]);
+  });
+});
+
+describe("compute_dominant_colour_from_rgba_pixels", () => {
+  function create_rgba_pixels(pixel_colours: [number, number, number, number][]): Uint8ClampedArray {
+    return new Uint8ClampedArray(pixel_colours.flat());
+  }
+
+  it("prefers a vivid colour over a slightly larger area of grey", () => {
+    const rgba_pixels = create_rgba_pixels([
+      ...Array.from({ length: 12 }, () => [120, 120, 120, 255] as [number, number, number, number]),
+      ...Array.from({ length: 10 }, () => [220, 30, 40, 255] as [number, number, number, number]),
+    ]);
+    expect(compute_dominant_colour_from_rgba_pixels(rgba_pixels)).toBe("#dc1e28");
+  });
+
+  it("ignores transparent pixels and falls back to mid grey when nothing is opaque", () => {
+    expect(compute_dominant_colour_from_rgba_pixels(create_rgba_pixels([[255, 0, 0, 0]]))).toBe("#808080");
+  });
+});
