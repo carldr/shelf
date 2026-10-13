@@ -1,7 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { hostname } from "@tauri-apps/plugin-os";
 import { load_app_settings, save_app_settings, type AppSettings } from "./app_settings_store";
 import { resolve_album_covers_directory_path } from "./library/album_cover_cache";
+import type { SavedAlbum } from "./library/saved_album";
 import { sort_saved_albums } from "./library/saved_album_sort_order";
 import {
   is_saved_albums_library_stale,
@@ -10,6 +13,8 @@ import {
 } from "./library/saved_albums_library_store";
 import { sync_saved_albums_library } from "./library/saved_albums_sync";
 import { SpotifyAccessTokenSession } from "./spotify/spotify_access_token_session";
+import { describe_spotify_playback_error, play_spotify_album } from "./spotify/spotify_album_playback";
+import { SpotifyNowPlayingPoller } from "./spotify/spotify_now_playing_poller";
 import { authorize_spotify_with_pkce, SpotifyRefreshTokenRejectedError } from "./spotify/spotify_pkce_auth";
 import { SpotifyWebApiClient } from "./spotify/spotify_web_api_client";
 import { create_shelf_view, type ShelfView } from "./views/shelf_view";
@@ -22,6 +27,7 @@ interface ConnectedSpotifyAccount {
   access_token_session: SpotifyAccessTokenSession;
   spotify_web_api_client: SpotifyWebApiClient;
   spotify_display_name: string;
+  now_playing_poller: SpotifyNowPlayingPoller;
 }
 
 let app_settings: AppSettings;
@@ -38,8 +44,47 @@ document.addEventListener("keydown", (keyboard_event) => {
 
 void listen("tray_menu_open_settings", () => show_spotify_connection_view(null));
 void listen("tray_menu_refresh_library", () => void sync_library());
-void listen("shelf_window_shown", () => shelf_view?.resume());
-void listen("shelf_window_hidden", () => shelf_view?.pause());
+void listen("shelf_window_shown", () => void show_shelf_window_contents());
+void listen("shelf_window_hidden", () => {
+  shelf_view?.pause();
+  connected_spotify_account?.now_playing_poller.stop();
+});
+
+/** Resumes drawing, starts the now-playing poll, and opens the playing album in the middle. */
+async function show_shelf_window_contents(): Promise<void> {
+  if (!shelf_view || shelf_view_root.hidden) {
+    return;
+  }
+  shelf_view.resume();
+  const now_playing_poller = connected_spotify_account?.now_playing_poller;
+  if (!now_playing_poller) {
+    return;
+  }
+  now_playing_poller.start();
+  const now_playing_album_id = await now_playing_poller.poll_now();
+  if (now_playing_album_id) {
+    shelf_view.jump_to_album(now_playing_album_id);
+  }
+}
+
+async function play_album_on_spotify(saved_album: SavedAlbum): Promise<void> {
+  if (!connected_spotify_account) {
+    return;
+  }
+  const { spotify_web_api_client, now_playing_poller } = connected_spotify_account;
+  try {
+    await play_spotify_album(saved_album.spotify_album_uri, {
+      spotify_web_api_client,
+      hostname: (await hostname()) ?? "",
+      open_url: (url) => openUrl(url),
+      wait_milliseconds: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+    });
+    // Spotify takes a moment to report the new album.
+    setTimeout(() => void now_playing_poller.poll_now(), 1_000);
+  } catch (playback_error) {
+    shelf_view?.show_message(describe_spotify_playback_error(playback_error));
+  }
+}
 
 async function start_shelf(): Promise<void> {
   app_settings = await load_app_settings();
@@ -78,6 +123,9 @@ async function connect_spotify_account(
     access_token_session,
     spotify_web_api_client,
     spotify_display_name: spotify_current_user.display_name ?? spotify_current_user.id,
+    now_playing_poller: new SpotifyNowPlayingPoller(spotify_web_api_client, (now_playing_album_id) =>
+      shelf_view?.set_now_playing_album(now_playing_album_id),
+    ),
   };
 }
 
@@ -93,6 +141,7 @@ function show_spotify_connection_view(status_message: string | null): void {
       const token_response = await authorize_spotify_with_pkce(spotify_client_id);
       app_settings = { ...app_settings, spotify_client_id };
       await save_app_settings(app_settings);
+      connected_spotify_account?.now_playing_poller.stop();
       await connected_spotify_account?.access_token_session.disconnect();
       const access_token_session = await SpotifyAccessTokenSession.start_from_authorization(
         spotify_client_id,
@@ -104,6 +153,7 @@ function show_spotify_connection_view(status_message: string | null): void {
       await sync_library();
     },
     on_disconnect: async () => {
+      connected_spotify_account?.now_playing_poller.stop();
       await connected_spotify_account?.access_token_session.disconnect();
       connected_spotify_account = null;
       show_spotify_connection_view(null);
@@ -124,7 +174,7 @@ async function show_library_view(): Promise<void> {
     },
     on_refresh_library: () => void sync_library(),
     on_open_settings: () => show_spotify_connection_view(null),
-    on_album_click: (saved_album) => console.info("Shelf album clicked", saved_album.spotify_album_uri),
+    on_album_click: (saved_album) => void play_album_on_spotify(saved_album),
   });
   shelf_view.resume();
   show_sorted_albums();

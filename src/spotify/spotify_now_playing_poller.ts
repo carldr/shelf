@@ -25,10 +25,9 @@ export class SpotifyNowPlayingPoller {
     private readonly on_now_playing_album_change: (now_playing_album_id: string | null) => void,
   ) {}
 
-  /** Polls at once and then every few seconds. Call when the window is shown. */
+  /** Polls every few seconds. Call when the window is shown, together with poll_now for the first result. */
   start(): void {
     this.stop();
-    void this.poll_now();
     this.poll_timer = setInterval(() => void this.poll_now(), NOW_PLAYING_POLL_INTERVAL_MS);
   }
 
