@@ -1,0 +1,15 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/schemas/
+
+# Tokens and caches never belong in the repo. Shelf keeps them outside the
+# project (Keychain and the app data dir); these lines catch stray copies.
+*.token
+.env
+.env.*
+albums.json
+covers/
+app_settings.json
+
+.DS_Store

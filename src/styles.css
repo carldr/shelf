@@ -1,0 +1,27 @@
+:root {
+  color-scheme: dark;
+  --shelf_text_colour: rgba(255, 255, 255, 0.92);
+  --shelf_muted_text_colour: rgba(255, 255, 255, 0.55);
+  --shelf_corner_radius: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  font-size: 13px;
+}
+
+/* The window is transparent; the vibrancy effect behind it gives the background. */
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  color: var(--shelf_text_colour);
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+#app_root {
+  height: 100%;
+  box-sizing: border-box;
+  border-radius: var(--shelf_corner_radius);
+}
