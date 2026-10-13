@@ -42,6 +42,7 @@ let connected_spotify_account: ConnectedSpotifyAccount | null = null;
 let saved_albums_library: SavedAlbumsLibrary | null = null;
 let shelf_view: ShelfView | null = null;
 let library_sync_in_progress = false;
+let library_sync_progress_text = "";
 
 document.addEventListener("keydown", (keyboard_event) => {
   if (keyboard_event.key === "Escape") {
@@ -123,10 +124,11 @@ async function start_shelf(): Promise<void> {
     return;
   }
   saved_albums_library = await load_saved_albums_library();
-  await show_library_view();
   if (is_saved_albums_library_stale(saved_albums_library)) {
-    await sync_library();
+    // Starts before the shelf shows, so the shelf opens behind the sync spinner.
+    void sync_library();
   }
+  await show_library_view();
 }
 
 async function connect_spotify_account(
@@ -169,8 +171,8 @@ function show_spotify_connection_view(status_message: string | null): void {
       }
       // The new login can be a different Spotify account, so the stored library is synced again.
       saved_albums_library = await load_saved_albums_library();
+      void sync_library();
       await show_library_view();
-      await sync_library();
     },
     on_disconnect: async () => {
       connected_spotify_account?.now_playing_poller.stop();
@@ -219,11 +221,13 @@ async function show_library_view(): Promise<void> {
         : load_cached_album_cover_thumbnail_bitmap(saved_album),
   });
   shelf_view.resume();
+  if (library_sync_in_progress) {
+    shelf_view.show_sync_in_progress(library_sync_progress_text);
+    return;
+  }
   show_sorted_albums();
   if (app_settings.demo_mode_enabled) {
     shelf_view.show_sync_status("Demo library. Connect Spotify in Settings to see your own albums.");
-  } else if (library_sync_in_progress) {
-    shelf_view.show_sync_status("Syncing…");
   } else if (saved_albums_library) {
     shelf_view.show_sync_status(`Synced ${new Date(saved_albums_library.synced_at).toLocaleString()}`);
   }
@@ -240,27 +244,34 @@ async function sync_library(): Promise<void> {
     return;
   }
   library_sync_in_progress = true;
-  shelf_view?.show_sync_status("Syncing…");
+  show_library_sync_progress("Syncing…");
+  let sync_status_text: string;
   try {
     saved_albums_library = await sync_saved_albums_library(
       connected_spotify_account.spotify_web_api_client,
       saved_albums_library,
       (sync_progress) =>
-        shelf_view?.show_sync_status(
+        show_library_sync_progress(
           sync_progress.sync_stage === "fetching_albums"
             ? `Fetching albums ${sync_progress.completed_count} of ${sync_progress.total_count}`
             : `Caching covers ${sync_progress.completed_count} of ${sync_progress.total_count}`,
         ),
     );
-    show_sorted_albums();
-    shelf_view?.show_sync_status(`Synced ${new Date(saved_albums_library.synced_at).toLocaleString()}`);
+    sync_status_text = `Synced ${new Date(saved_albums_library.synced_at).toLocaleString()}`;
   } catch (sync_error) {
-    shelf_view?.show_sync_status(
-      `Sync failed: ${sync_error instanceof Error ? sync_error.message : String(sync_error)}`,
-    );
-  } finally {
-    library_sync_in_progress = false;
+    sync_status_text = `Sync failed: ${sync_error instanceof Error ? sync_error.message : String(sync_error)}`;
   }
+  library_sync_in_progress = false;
+  shelf_view?.show_sync_in_progress(null);
+  // After a failed sync the shelf shows the library from before it.
+  show_sorted_albums();
+  shelf_view?.show_sync_status(sync_status_text);
+}
+
+/** Keeps the text for a shelf view created during the sync, and shows it on the current one. */
+function show_library_sync_progress(sync_progress_text: string): void {
+  library_sync_progress_text = sync_progress_text;
+  shelf_view?.show_sync_in_progress(sync_progress_text);
 }
 
 void start_shelf();

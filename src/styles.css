@@ -177,6 +177,44 @@ code {
   inset: 0;
 }
 
+/* Covers the shelf and takes its clicks and scrolling while a sync changes the library. */
+.shelf_view_sync_overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: rgba(16, 16, 18, 0.72);
+}
+
+.shelf_view_sync_overlay[hidden] {
+  display: none;
+}
+
+.shelf_view_sync_spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--shelf_control_border);
+  border-top-color: var(--shelf_text_colour);
+  border-radius: 50%;
+  animation: shelf_view_sync_spinner_rotation 0.9s linear infinite;
+}
+
+@keyframes shelf_view_sync_spinner_rotation {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.shelf_view_sync_progress {
+  margin: 0;
+  color: var(--shelf_muted_text_colour);
+  font-variant-numeric: tabular-nums;
+}
+
 .shelf_view_message {
   position: absolute;
   z-index: 1;

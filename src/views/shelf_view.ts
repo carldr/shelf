@@ -25,6 +25,11 @@ export interface ShelfView {
   jump_to_album(spotify_album_id: string): boolean;
   show_albums(sorted_saved_albums: readonly SavedAlbum[]): void;
   show_sync_status(sync_status_text: string): void;
+  /**
+   * While a sync runs, covers the shelf with a spinner and `sync_progress_text`, stops drawing,
+   * and disables the toolbar controls, because the library changes under the shelf. Null ends it.
+   */
+  show_sync_in_progress(sync_progress_text: string | null): void;
   pause(): void;
   resume(): void;
 }
@@ -57,6 +62,10 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
       </header>
       <div class="shelf_view_canvas_host">
         <p class="shelf_view_message" role="alert" hidden></p>
+        <div class="shelf_view_sync_overlay" hidden>
+          <div class="shelf_view_sync_spinner" aria-hidden="true"></div>
+          <p class="shelf_view_sync_progress" role="status"></p>
+        </div>
       </div>
     </section>`;
 
@@ -75,6 +84,13 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
 
   const message_element = container.querySelector<HTMLElement>(".shelf_view_message")!;
   let message_timer: ReturnType<typeof setTimeout> | undefined;
+  const sync_overlay_element = container.querySelector<HTMLElement>(".shelf_view_sync_overlay")!;
+  const sync_progress_element = container.querySelector<HTMLElement>(".shelf_view_sync_progress")!;
+  const toolbar_controls = container.querySelectorAll<HTMLButtonElement | HTMLSelectElement>(
+    ".shelf_view_toolbar button, .shelf_view_toolbar select",
+  );
+  let sync_in_progress = false;
+  let window_shown = true;
 
   const shelf_frame_timings: ShelfFrameTiming[] = [];
   let cover_load_count = 0;
@@ -128,8 +144,29 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
         sync_status_element.textContent = sync_status_text;
       }
     },
-    pause: () => shelf_renderer.pause(),
-    resume: () => shelf_renderer.resume(),
+    show_sync_in_progress(sync_progress_text) {
+      sync_in_progress = sync_progress_text !== null;
+      sync_overlay_element.hidden = !sync_in_progress;
+      sync_progress_element.textContent = sync_progress_text ?? "";
+      for (const toolbar_control of toolbar_controls) {
+        toolbar_control.disabled = sync_in_progress;
+      }
+      if (sync_in_progress) {
+        shelf_renderer.pause();
+      } else if (window_shown) {
+        shelf_renderer.resume();
+      }
+    },
+    pause() {
+      window_shown = false;
+      shelf_renderer.pause();
+    },
+    resume() {
+      window_shown = true;
+      if (!sync_in_progress) {
+        shelf_renderer.resume();
+      }
+    },
   };
 }
 
