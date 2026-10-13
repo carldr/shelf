@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   compute_album_rect_x,
   compute_closed_album_left_x,
-  compute_shelf_content_width,
+  compute_scroll_x_centring_album,
+  compute_scroll_x_range,
   ease_toward,
   find_closed_album_index_at,
+  find_drawn_album_index_at,
   type ShelfGeometry,
 } from "./shelf_layout";
 
@@ -14,7 +16,6 @@ const shelf_geometry: ShelfGeometry = { spine_width: 20, cover_size: 200, edge_p
 describe("shelf layout", () => {
   it("leaves room at both ends for a cover to open", () => {
     expect(compute_closed_album_left_x(0, shelf_geometry)).toBe(100);
-    expect(compute_shelf_content_width(3, shelf_geometry)).toBe(260);
   });
 
   it("finds the closed album under a point and clamps to the ends", () => {
@@ -42,6 +43,30 @@ describe("shelf layout", () => {
       const previous_rect = rects[rect_index - 1];
       expect(rects[rect_index].left_x).toBeCloseTo(previous_rect.left_x + previous_rect.width);
     }
+  });
+});
+
+describe("centring and hit testing", () => {
+  it("scrolls so that an album's closed centre is in the middle of the view", () => {
+    // Album 2 closed centre: 100 + 2 * 20 + 10 = 150. View 400 wide, so scroll 150 - 200 = -50.
+    expect(compute_scroll_x_centring_album(2, 400, shelf_geometry)).toBe(-50);
+  });
+
+  it("limits scrolling to the first and last album in the middle", () => {
+    expect(compute_scroll_x_range(5, 400, shelf_geometry)).toEqual({
+      minimum_scroll_x: compute_scroll_x_centring_album(0, 400, shelf_geometry),
+      maximum_scroll_x: compute_scroll_x_centring_album(4, 400, shelf_geometry),
+    });
+  });
+
+  it("finds the drawn album under a point, including the wide open cover", () => {
+    const opening_albums = [{ album_index: 2, open_amount: 1 }];
+    // Drawn: album 1 at 30–50, album 2 at 50–250, album 3 at 250–270.
+    expect(find_drawn_album_index_at(40, 0, 4, opening_albums, shelf_geometry)).toBe(1);
+    expect(find_drawn_album_index_at(60, 0, 4, opening_albums, shelf_geometry)).toBe(2);
+    expect(find_drawn_album_index_at(249, 0, 4, opening_albums, shelf_geometry)).toBe(2);
+    expect(find_drawn_album_index_at(255, 0, 4, opening_albums, shelf_geometry)).toBe(3);
+    expect(find_drawn_album_index_at(5_000, 0, 4, opening_albums, shelf_geometry)).toBe(-1);
   });
 });
 

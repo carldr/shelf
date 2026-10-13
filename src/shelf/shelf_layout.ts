@@ -3,8 +3,8 @@
  *
  * Closed albums stand side by side as spines. An opening album grows from spine width to
  * cover width, centred on its own closed spine, so the albums on each side move aside by
- * half of its extra width. Focus is found in closed coordinates, which do not move while
- * albums open; this keeps the album under the pointer stable.
+ * half of its extra width. The open album is the one whose closed spine is in the middle
+ * of the view. Closed positions do not move while albums open, so focus does not jitter.
  */
 
 export interface ShelfGeometry {
@@ -28,10 +28,6 @@ export function compute_open_extra_width(open_amount: number, shelf_geometry: Sh
 /** The space at each end, so that the first and last albums can open without being cut off. */
 function compute_content_start_x(shelf_geometry: ShelfGeometry): number {
   return shelf_geometry.edge_padding + (shelf_geometry.cover_size - shelf_geometry.spine_width) / 2;
-}
-
-export function compute_shelf_content_width(album_count: number, shelf_geometry: ShelfGeometry): number {
-  return 2 * compute_content_start_x(shelf_geometry) + album_count * shelf_geometry.spine_width;
 }
 
 export function compute_closed_album_left_x(album_index: number, shelf_geometry: ShelfGeometry): number {
@@ -71,6 +67,44 @@ export function compute_album_rect_x(
     left_x: compute_closed_album_left_x(album_index, shelf_geometry) + shift_x,
     width: shelf_geometry.spine_width + compute_open_extra_width(own_open_amount, shelf_geometry),
   };
+}
+
+/** The scroll position that puts the album's closed spine centre in the middle of the view. */
+export function compute_scroll_x_centring_album(
+  album_index: number,
+  view_width: number,
+  shelf_geometry: ShelfGeometry,
+): number {
+  return compute_closed_album_left_x(album_index, shelf_geometry) + shelf_geometry.spine_width / 2 - view_width / 2;
+}
+
+/** Scrolling stops when the first or the last album is in the middle of the view. */
+export function compute_scroll_x_range(
+  album_count: number,
+  view_width: number,
+  shelf_geometry: ShelfGeometry,
+): { minimum_scroll_x: number; maximum_scroll_x: number } {
+  return {
+    minimum_scroll_x: compute_scroll_x_centring_album(0, view_width, shelf_geometry),
+    maximum_scroll_x: compute_scroll_x_centring_album(Math.max(album_count - 1, 0), view_width, shelf_geometry),
+  };
+}
+
+/** The album drawn at `content_x` among albums `first_album_index`…`last_album_index`, or -1 for none. */
+export function find_drawn_album_index_at(
+  content_x: number,
+  first_album_index: number,
+  last_album_index: number,
+  opening_albums: readonly OpeningAlbum[],
+  shelf_geometry: ShelfGeometry,
+): number {
+  for (let album_index = first_album_index; album_index <= last_album_index; album_index += 1) {
+    const album_rect = compute_album_rect_x(album_index, opening_albums, shelf_geometry);
+    if (content_x >= album_rect.left_x && content_x < album_rect.left_x + album_rect.width) {
+      return album_index;
+    }
+  }
+  return -1;
 }
 
 /**

@@ -103,7 +103,8 @@ function run_stress_test_sweep(
   const move_scroll_target = () => {
     const sweep_phase = ((performance.now() - sweep_start_ms) % sweep_period_ms) / sweep_period_ms;
     const sweep_position = sweep_phase < 0.5 ? sweep_phase * 2 : 2 - sweep_phase * 2;
-    shelf_renderer.scroll_to(sweep_position * shelf_renderer.maximum_scroll_x);
+    const { minimum_scroll_x, maximum_scroll_x } = shelf_renderer.scroll_x_range;
+    shelf_renderer.scroll_to(minimum_scroll_x + sweep_position * (maximum_scroll_x - minimum_scroll_x));
     requestAnimationFrame(move_scroll_target);
   };
   requestAnimationFrame(move_scroll_target);

@@ -3,9 +3,11 @@ import type { SavedAlbum } from "../library/saved_album";
 import { ShelfCoverTextureCache } from "./shelf_cover_texture_cache";
 import {
   compute_album_rect_x,
-  compute_shelf_content_width,
+  compute_scroll_x_centring_album,
+  compute_scroll_x_range,
   ease_toward,
   find_closed_album_index_at,
+  find_drawn_album_index_at,
   type OpeningAlbum,
   type ShelfGeometry,
 } from "./shelf_layout";
@@ -28,6 +30,8 @@ const SCROLL_EASING_TIME_CONSTANT_MS = 45;
 const OPEN_AMOUNT_EASING_TIME_CONSTANT_MS = 80;
 /** An album whose open amount falls below this is closed and leaves the opening list. */
 const CLOSED_OPEN_AMOUNT_THRESHOLD = 0.002;
+/** The shelf snaps to the nearest album once no wheel event has arrived for this long. */
+const WHEEL_SNAP_DELAY_MS = 120;
 /** Lines from a mouse wheel in line mode become this many pixels. */
 const WHEEL_LINE_HEIGHT_PX = 16;
 /** A closed cover is drawn this bright, so that a turning case looks lit from the front. */
@@ -103,8 +107,11 @@ export class ShelfRenderer {
   private shelf_geometry: ShelfGeometry = { spine_width: 24, cover_size: 200, edge_padding: SHELF_EDGE_PADDING };
   private scroll_x = 0;
   private scroll_target_x = 0;
-  private pointer_x: number | null = null;
+  private snap_timer: ReturnType<typeof setTimeout> | undefined;
   private focused_album_index = -1;
+  /** The last frame's layout, for hit testing clicks against what is on screen. */
+  private drawn_opening_albums: OpeningAlbum[] = [];
+  private drawn_album_index_range = { first_album_index: 0, last_album_index: -1 };
   private readonly label_measuring_context = document.createElement("canvas").getContext("2d")!;
 
   private constructor(private readonly options: ShelfRendererOptions) {}
@@ -131,7 +138,7 @@ export class ShelfRenderer {
 
     this.application.renderer.on("resize", () => this.update_geometry());
     this.update_geometry();
-    this.listen_to_pointer_and_wheel();
+    this.listen_to_click_and_wheel();
     this.application.ticker.add((ticker) => this.render_frame(ticker.deltaMS));
   }
 
@@ -142,20 +149,22 @@ export class ShelfRenderer {
     for (const [album_index, display] of this.displays_by_album_index) {
       this.release_display(album_index, display);
     }
-    this.scroll_x = 0;
-    this.scroll_target_x = 0;
-    this.clamp_scroll_target();
+    this.scroll_target_x = compute_scroll_x_centring_album(0, this.application.screen.width, this.shelf_geometry);
     this.scroll_x = this.scroll_target_x;
   }
 
-  /** Scrolls so that `scroll_target_x` is the left edge of the viewport, with easing. */
+  /** Scrolls, with easing, so that `scroll_target_x` is the left edge of the view. */
   scroll_to(scroll_target_x: number): void {
     this.scroll_target_x = scroll_target_x;
     this.clamp_scroll_target();
   }
 
-  get maximum_scroll_x(): number {
-    return Math.max(0, compute_shelf_content_width(this.saved_albums.length, this.shelf_geometry) - this.application.screen.width);
+  scroll_album_to_centre(album_index: number): void {
+    this.scroll_to(compute_scroll_x_centring_album(album_index, this.application.screen.width, this.shelf_geometry));
+  }
+
+  get scroll_x_range(): { minimum_scroll_x: number; maximum_scroll_x: number } {
+    return compute_scroll_x_range(this.saved_albums.length, this.application.screen.width, this.shelf_geometry);
   }
 
   /** Stops drawing while the window is hidden. */
@@ -173,6 +182,7 @@ export class ShelfRenderer {
   }
 
   private update_geometry(): void {
+    const centred_album_index = Math.max(this.focused_album_index, 0);
     const view_height = this.application.screen.height;
     const cover_size = Math.max(40, Math.floor(view_height - SHELF_TOP_PADDING - SHELF_LEDGE_HEIGHT));
     this.shelf_geometry = {
@@ -190,21 +200,36 @@ export class ShelfRenderer {
       .fill({ color: 0xffffff, alpha: 0.18 })
       .rect(0, SHELF_TOP_PADDING + cover_size + 2, this.application.screen.width, SHELF_LEDGE_HEIGHT - 2)
       .fill({ color: 0x000000, alpha: 0.25 });
-    this.clamp_scroll_target();
+    // Keep the same album in the middle at the new size.
+    this.scroll_target_x = compute_scroll_x_centring_album(
+      centred_album_index,
+      this.application.screen.width,
+      this.shelf_geometry,
+    );
+    this.scroll_x = this.scroll_target_x;
   }
 
-  private listen_to_pointer_and_wheel(): void {
+  /**
+   * The pointer does not move focus: the open album is always the one in the middle.
+   * Clicking it plays it; clicking another album brings that album to the middle.
+   */
+  private listen_to_click_and_wheel(): void {
     const canvas = this.application.canvas;
-    canvas.addEventListener("pointermove", (pointer_event) => {
-      this.pointer_x = pointer_event.offsetX;
-    });
-    canvas.addEventListener("pointerleave", () => {
-      this.pointer_x = null;
-    });
-    canvas.addEventListener("click", () => {
-      const focused_album = this.saved_albums[this.focused_album_index];
-      if (focused_album) {
-        this.options.on_album_click(focused_album);
+    canvas.addEventListener("click", (click_event) => {
+      const clicked_album_index = find_drawn_album_index_at(
+        this.scroll_x + click_event.offsetX,
+        this.drawn_album_index_range.first_album_index,
+        this.drawn_album_index_range.last_album_index,
+        this.drawn_opening_albums,
+        this.shelf_geometry,
+      );
+      if (clicked_album_index === -1) {
+        return;
+      }
+      if (clicked_album_index === this.focused_album_index) {
+        this.options.on_album_click(this.saved_albums[clicked_album_index]);
+      } else {
+        this.scroll_album_to_centre(clicked_album_index);
       }
     });
     canvas.addEventListener(
@@ -215,22 +240,29 @@ export class ShelfRenderer {
         // A vertical mouse wheel scrolls the shelf sideways too.
         const wheel_delta =
           Math.abs(wheel_event.deltaX) > Math.abs(wheel_event.deltaY) ? wheel_event.deltaX : wheel_event.deltaY;
-        this.scroll_target_x += wheel_delta * line_scale;
-        this.clamp_scroll_target();
+        this.scroll_to(this.scroll_target_x + wheel_delta * line_scale);
+        // Trackpad momentum arrives as more wheel events, so snap only once they stop.
+        clearTimeout(this.snap_timer);
+        this.snap_timer = setTimeout(() => this.snap_to_nearest_album(), WHEEL_SNAP_DELAY_MS);
       },
       { passive: false },
     );
   }
 
-  private clamp_scroll_target(): void {
-    const content_width = compute_shelf_content_width(this.saved_albums.length, this.shelf_geometry);
-    const view_width = this.application.screen?.width ?? 0;
-    if (content_width <= view_width) {
-      // A library narrower than the window sits in the middle.
-      this.scroll_target_x = (content_width - view_width) / 2;
+  /** Settles the scroll so that the album nearest the middle is exactly in the middle. */
+  private snap_to_nearest_album(): void {
+    if (this.saved_albums.length === 0) {
       return;
     }
-    this.scroll_target_x = Math.min(Math.max(this.scroll_target_x, 0), content_width - view_width);
+    const view_width = this.application.screen.width;
+    this.scroll_album_to_centre(
+      find_closed_album_index_at(this.scroll_target_x + view_width / 2, this.saved_albums.length, this.shelf_geometry),
+    );
+  }
+
+  private clamp_scroll_target(): void {
+    const { minimum_scroll_x, maximum_scroll_x } = this.scroll_x_range;
+    this.scroll_target_x = Math.min(Math.max(this.scroll_target_x, minimum_scroll_x), maximum_scroll_x);
   }
 
   private render_frame(frame_duration_ms: number): void {
@@ -245,8 +277,11 @@ export class ShelfRenderer {
       this.scroll_x = this.scroll_target_x;
     }
 
-    const focus_x = this.pointer_x ?? view_width / 2;
-    this.focused_album_index = find_closed_album_index_at(this.scroll_x + focus_x, album_count, this.shelf_geometry);
+    this.focused_album_index = find_closed_album_index_at(
+      this.scroll_x + view_width / 2,
+      album_count,
+      this.shelf_geometry,
+    );
     const opening_albums = this.update_open_amounts(frame_duration_ms);
 
     // Opening albums push neighbours at most half a cover each way, so a margin of one cover covers them.
@@ -267,6 +302,8 @@ export class ShelfRenderer {
       const display = this.displays_by_album_index.get(album_index) ?? this.acquire_display(album_index);
       this.position_display(display, album_index, opening_albums);
     }
+    this.drawn_opening_albums = opening_albums;
+    this.drawn_album_index_range = { first_album_index: first_visible_index, last_album_index: last_visible_index };
   }
 
   private update_open_amounts(frame_duration_ms: number): OpeningAlbum[] {
