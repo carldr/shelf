@@ -9,8 +9,6 @@ The idea comes from the Spine Music wall display.
 
 ![Shelf showing a row of CD spines with one album open](docs/shelf_screenshot.png)
 
-<!-- Screenshot or GIF to come: replace docs/shelf_screenshot.png. -->
-
 ## Requirements
 
 - macOS 11 or later. The code builds on Windows and Linux, but only macOS is tested.
