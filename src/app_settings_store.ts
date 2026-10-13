@@ -1,14 +1,17 @@
 import { BaseDirectory, exists, mkdir, readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import type { SavedAlbumSortOrder } from "./library/saved_album_sort_order";
 
 const APP_SETTINGS_FILE_NAME = "app_settings.json";
 
 export interface AppSettings {
   /** The user's own Spotify app Client ID. Shelf ships with none. */
   spotify_client_id: string | null;
+  saved_album_sort_order: SavedAlbumSortOrder;
 }
 
 const DEFAULT_APP_SETTINGS: AppSettings = {
   spotify_client_id: null,
+  saved_album_sort_order: "recently_added",
 };
 
 export async function load_app_settings(): Promise<AppSettings> {
