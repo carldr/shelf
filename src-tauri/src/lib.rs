@@ -6,6 +6,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_os::init())
         .setup(|app| {
             // Accessory apps have no Dock icon and no app menu; the tray icon is the only entry point.
             #[cfg(target_os = "macos")]

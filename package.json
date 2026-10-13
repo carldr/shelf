@@ -14,6 +14,7 @@
     "@tauri-apps/api": "^2.12.3",
     "@tauri-apps/plugin-fs": "^2.7.0",
     "@tauri-apps/plugin-opener": "^2.7.1",
+    "@tauri-apps/plugin-os": "^2.4.0",
     "pixi.js": "^8.22.0"
   },
   "devDependencies": {
