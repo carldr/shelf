@@ -130,15 +130,15 @@ fn hide_shelf_window(app_handle: &AppHandle) {
     let _ = app_handle.emit("shelf_window_hidden", ());
 }
 
-/// Centres the window under the tray icon, kept inside the monitor that holds the icon.
+/// Places the window just below the menu bar, spanning the width of the monitor that holds the tray icon.
+/// Without a matching monitor, the window keeps its width and is centred under the icon.
 fn anchor_shelf_window_under_tray_icon(window: &WebviewWindow, tray_icon_rect: Rect) {
     let scale_factor = window.scale_factor().unwrap_or(1.0);
     let icon_position: PhysicalPosition<f64> = tray_icon_rect.position.to_physical(scale_factor);
     let icon_size: tauri::PhysicalSize<f64> = tray_icon_rect.size.to_physical(scale_factor);
     let Ok(window_size) = window.outer_size() else { return };
-
-    let mut window_x = icon_position.x + icon_size.width / 2.0 - window_size.width as f64 / 2.0;
-    let window_y = icon_position.y + icon_size.height + WINDOW_GAP_BELOW_TRAY_ICON;
+    let margin = WINDOW_GAP_BELOW_TRAY_ICON * scale_factor;
+    let window_y = icon_position.y + icon_size.height + margin;
 
     // monitor_from_point reads its arguments as logical on macOS, so match physical rects directly.
     let monitor_holding_icon = window.available_monitors().unwrap_or_default().into_iter().find(|monitor| {
@@ -147,14 +147,18 @@ fn anchor_shelf_window_under_tray_icon(window: &WebviewWindow, tray_icon_rect: R
         (left..left + monitor.size().width as f64).contains(&icon_position.x)
             && (top..top + monitor.size().height as f64).contains(&icon_position.y)
     });
-    if let Some(monitor) = monitor_holding_icon {
-        let monitor_left = monitor.position().x as f64;
-        let monitor_right = monitor_left + monitor.size().width as f64;
-        let margin = WINDOW_GAP_BELOW_TRAY_ICON;
-        window_x = window_x
-            .min(monitor_right - window_size.width as f64 - margin)
-            .max(monitor_left + margin);
-    }
 
+    let (window_x, window_width) = match monitor_holding_icon {
+        Some(monitor) => (
+            monitor.position().x as f64 + margin,
+            monitor.size().width as f64 - 2.0 * margin,
+        ),
+        None => (
+            icon_position.x + icon_size.width / 2.0 - window_size.width as f64 / 2.0,
+            window_size.width as f64,
+        ),
+    };
+
+    let _ = window.set_size(tauri::PhysicalSize::new(window_width.round() as u32, window_size.height));
     let _ = window.set_position(PhysicalPosition::new(window_x.round() as i32, window_y.round() as i32));
 }
