@@ -106,6 +106,21 @@ describe("sort_saved_albums", () => {
     expect(sorted_ids("artist_a_to_z")).toEqual(["abba", "beatles", "unknown_year"]);
   });
 
+  it("sorts album names A–Z without a leading 'The', then by artist", () => {
+    const albums_by_name = [
+      create_saved_album({ spotify_album_id: "the_bends", album_name: "The Bends", artist_names: "Radiohead" }),
+      create_saved_album({ spotify_album_id: "abbey_road", album_name: "Abbey Road", artist_names: "The Beatles" }),
+      create_saved_album({ spotify_album_id: "greatest_hits_queen", album_name: "Greatest Hits", artist_names: "Queen" }),
+      create_saved_album({ spotify_album_id: "greatest_hits_abba", album_name: "Greatest Hits", artist_names: "ABBA" }),
+    ];
+    expect(sort_saved_albums(albums_by_name, "album_name_a_to_z").map((saved_album) => saved_album.spotify_album_id)).toEqual([
+      "abbey_road",
+      "the_bends",
+      "greatest_hits_abba",
+      "greatest_hits_queen",
+    ]);
+  });
+
   it("puts the oldest release first and unknown years last", () => {
     expect(sorted_ids("release_year")).toEqual(["beatles", "abba", "unknown_year"]);
   });

@@ -109,7 +109,7 @@ src/                                   TypeScript frontend
     saved_albums_sync.ts               Fetches the library and caches covers
     saved_albums_library_store.ts      albums.json and its 6-hour staleness
     album_cover_cache.ts               Cover downloads and loading
-    saved_album_sort_order.ts          Recently added, artist A–Z, release year
+    saved_album_sort_order.ts          Recently added, artist A–Z, album A–Z, release year
   shelf/
     shelf_layout.ts                    Spine and cover positions, scrolling, hit testing
     shelf_renderer.ts                  PixiJS drawing of the jewel cases
