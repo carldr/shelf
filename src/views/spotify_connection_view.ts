@@ -16,6 +16,8 @@ export interface SpotifyConnectionViewOptions {
   /** Shows the generated demo library. Only offered before Spotify is connected. */
   on_try_demo: (() => void) | null;
   on_quit: () => void;
+  start_at_login: boolean;
+  on_start_at_login_change: (start_at_login: boolean) => void;
 }
 
 /**
@@ -38,6 +40,10 @@ export function render_spotify_connection_view(container: HTMLElement, options: 
           <button type="button" class="spotify_connection_view_done_button" hidden>Done</button>
           <button type="button" class="spotify_connection_view_quit_button">Quit</button>
         </div>
+        <label class="spotify_connection_view_start_at_login">
+          <input type="checkbox" class="spotify_connection_view_start_at_login_checkbox" />
+          Start Shelf at login
+        </label>
       </header>
       <ol class="spotify_connection_view_steps">
         <li>
@@ -89,6 +95,13 @@ export function render_spotify_connection_view(container: HTMLElement, options: 
     done_button.addEventListener("click", options.on_done);
   }
   container.querySelector(".spotify_connection_view_quit_button")!.addEventListener("click", options.on_quit);
+  const start_at_login_checkbox = container.querySelector<HTMLInputElement>(
+    ".spotify_connection_view_start_at_login_checkbox",
+  )!;
+  start_at_login_checkbox.checked = options.start_at_login;
+  start_at_login_checkbox.addEventListener("change", () =>
+    options.on_start_at_login_change(start_at_login_checkbox.checked),
+  );
   if (options.on_try_demo) {
     const try_demo_button = container.querySelector<HTMLButtonElement>(".spotify_connection_view_try_demo_button")!;
     try_demo_button.hidden = false;

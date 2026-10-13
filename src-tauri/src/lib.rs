@@ -9,6 +9,8 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init())
+        // On macOS, starting at login installs a Launch Agent plist under ~/Library/LaunchAgents.
+        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
         .setup(|app| {
             // Accessory apps have no Dock icon and no app menu; the tray icon is the only entry point.
             #[cfg(target_os = "macos")]

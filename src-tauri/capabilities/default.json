@@ -11,6 +11,9 @@
       "allow": [{ "url": "spotify:*" }]
     },
     "os:allow-hostname",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled",
     "fs:allow-appdata-read-recursive",
     "fs:allow-appdata-write-recursive",
     "fs:allow-appdata-meta-recursive"

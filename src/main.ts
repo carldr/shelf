@@ -5,6 +5,7 @@ import { hostname } from "@tauri-apps/plugin-os";
 import { load_app_settings, save_app_settings, type AppSettings } from "./app_settings_store";
 import { draw_demo_album_cover_bitmap } from "./demo/demo_album_cover";
 import { generate_demo_saved_albums } from "./demo/demo_saved_albums";
+import { apply_start_at_login_setting } from "./start_at_login";
 import {
   ALBUM_COVER_THUMBNAIL_SIZE_PX,
   load_cached_album_cover_bitmap,
@@ -100,6 +101,8 @@ async function play_album_on_spotify(saved_album: SavedAlbum): Promise<void> {
 
 async function start_shelf(): Promise<void> {
   app_settings = await load_app_settings();
+  // Applied at every start, so a new install registers the login item without a visit to Settings.
+  void apply_start_at_login_setting(app_settings.start_at_login);
   await resolve_album_covers_directory_path();
   if (app_settings.demo_mode_enabled) {
     await show_demo_library();
@@ -190,6 +193,12 @@ function show_spotify_connection_view(status_message: string | null): void {
             await show_demo_library();
           },
     on_quit: quit_shelf,
+    start_at_login: app_settings.start_at_login,
+    on_start_at_login_change: (start_at_login) => {
+      app_settings = { ...app_settings, start_at_login };
+      void save_app_settings(app_settings);
+      void apply_start_at_login_setting(start_at_login);
+    },
   });
 }
 

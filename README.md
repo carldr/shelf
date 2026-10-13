@@ -69,6 +69,7 @@ pnpm tauri dev
 | Click the open album | Plays it in Spotify. |
 | Esc, or click elsewhere | Closes the shelf. |
 | Refresh, Settings, Quit | The buttons at the top of the shelf. |
+| Start Shelf at login | A checkbox in Settings, on by default. Builds from `pnpm tauri dev` do not register at login. |
 
 When the shelf opens, the album Spotify is playing is in the middle, and a green bar on the ledge marks it.
 
@@ -85,7 +86,7 @@ Shelf keeps its data in `~/Library/Application Support/com.example.shelf/`:
 
 | File | Contents |
 |---|---|
-| `app_settings.json` | Your Client ID, sort order, and whether demo mode is on. |
+| `app_settings.json` | Your Client ID, sort order, whether demo mode is on, and whether Shelf starts at login. |
 | `albums.json` | The synced library. |
 | `covers/` | The cached covers and their thumbnails. |
 
@@ -98,6 +99,7 @@ To sign out, click **Disconnect** in Settings; Shelf then deletes the Keychain i
 src/                                   TypeScript frontend
   main.ts                              Start-up, view switching, sync and playback
   app_settings_store.ts                app_settings.json
+  start_at_login.ts                    Registers or removes the login item
   spotify/
     spotify_pkce_auth.ts               PKCE sign-in and token requests
     spotify_access_token_session.ts    Access token in memory, background refresh
