@@ -8,12 +8,28 @@ const ALBUM_COVERS_DIRECTORY_NAME = "covers";
 const PARALLEL_COVER_DOWNLOADS = 6;
 
 /**
+ * The Web API lists covers up to 640 px. The image CDN also serves 2000 px when the
+ * 640 px size prefix in the URL is swapped. This is undocumented, so a failed large
+ * download falls back to the listed 640 px image.
+ */
+const COVER_IMAGE_640_PX_PREFIX = "/image/ab67616d0000b273";
+const COVER_IMAGE_2000_PX_PREFIX = "/image/ab67616d000082c1";
+
+/** The 2000 px URL for a 640 px cover URL, or null when the URL has another form. */
+export function derive_large_cover_image_url(cover_image_url: string): string | null {
+  return cover_image_url.includes(COVER_IMAGE_640_PX_PREFIX)
+    ? cover_image_url.replace(COVER_IMAGE_640_PX_PREFIX, COVER_IMAGE_2000_PX_PREFIX)
+    : null;
+}
+
+/**
  * Names the cached file after the image ID at the end of the cover URL, such as
  * https://i.scdn.co/image/ab67616d0000b273… When Spotify or Shelf changes the image,
  * the URL changes, so the new image is downloaded and the old file is deleted as unused.
+ * The "_large" suffix marks files downloaded at 2000 px where the CDN had that size.
  */
 function album_cover_file_name(cover_image_url: string): string {
-  return `${cover_image_url.slice(cover_image_url.lastIndexOf("/") + 1)}.jpg`;
+  return `${cover_image_url.slice(cover_image_url.lastIndexOf("/") + 1)}_large.jpg`;
 }
 
 function album_cover_relative_path(cover_image_url: string): string {
@@ -84,17 +100,28 @@ async function cache_album_cover(saved_album: SavedAlbum): Promise<SavedAlbum> {
   if (cover_is_cached) {
     cover_image_bytes = await readFile(cover_relative_path, { baseDir: BaseDirectory.AppData });
   } else {
-    const cover_response = await fetch(saved_album.cover_image_url);
-    if (!cover_response.ok) {
-      throw new Error(`Cover download failed (${cover_response.status})`);
-    }
-    cover_image_bytes = new Uint8Array(await cover_response.arrayBuffer());
+    cover_image_bytes = await download_largest_cover_image(saved_album.cover_image_url);
     await writeFile(cover_relative_path, cover_image_bytes, { baseDir: BaseDirectory.AppData });
   }
   const cover_dominant_colour = await compute_dominant_colour_from_image_blob(
     new Blob([cover_image_bytes as BlobPart], { type: "image/jpeg" }),
   );
   return { ...saved_album, cover_dominant_colour };
+}
+
+async function download_largest_cover_image(cover_image_url: string): Promise<Uint8Array> {
+  const large_cover_image_url = derive_large_cover_image_url(cover_image_url);
+  if (large_cover_image_url) {
+    const large_cover_response = await fetch(large_cover_image_url).catch(() => null);
+    if (large_cover_response?.ok) {
+      return new Uint8Array(await large_cover_response.arrayBuffer());
+    }
+  }
+  const cover_response = await fetch(cover_image_url);
+  if (!cover_response.ok) {
+    throw new Error(`Cover download failed (${cover_response.status})`);
+  }
+  return new Uint8Array(await cover_response.arrayBuffer());
 }
 
 async function delete_unused_cover_files(saved_albums: readonly SavedAlbum[]): Promise<void> {
