@@ -5,7 +5,7 @@
 
 use std::fs::File;
 use std::io::BufWriter;
-use std::path::PathBuf;
+use std::path::{Component, Path, PathBuf};
 
 use image::codecs::jpeg::JpegEncoder;
 use image::imageops::FilterType;
@@ -14,6 +14,8 @@ use tauri::{AppHandle, Manager};
 
 const ALBUM_COVERS_DIRECTORY_NAME: &str = "covers";
 const ALBUM_COVER_THUMBNAIL_JPEG_QUALITY: u8 = 88;
+/// Limits the image the frontend can ask for, so that a bad size cannot exhaust memory.
+const MAXIMUM_THUMBNAIL_SIZE_PX: u32 = 2048;
 
 /// Covers are scaled to this many pixels square before the colour is sampled.
 const DOMINANT_COLOUR_SAMPLE_SIZE: u32 = 32;
@@ -35,6 +37,9 @@ pub async fn write_album_cover_thumbnail_and_sample_colour(
         .app_data_dir()
         .map_err(|error| error.to_string())?
         .join(ALBUM_COVERS_DIRECTORY_NAME);
+    if !(1..=MAXIMUM_THUMBNAIL_SIZE_PX).contains(&thumbnail_size_px) {
+        return Err(format!("Thumbnail size must be 1 to {MAXIMUM_THUMBNAIL_SIZE_PX} px."));
+    }
     let cover_file_path = covers_directory_path.join(require_bare_file_name(&cover_file_name)?);
     let thumbnail_file_path = covers_directory_path.join(require_bare_file_name(&thumbnail_file_name)?);
 
@@ -45,13 +50,18 @@ pub async fn write_album_cover_thumbnail_and_sample_colour(
     .map_err(|error| error.to_string())?
 }
 
+/// Accepts only a single plain path component ending in ".jpg". Checking the components, and not
+/// only the separators, also rejects Windows drive prefixes such as "C:x.jpg", which `join`
+/// would treat as a path outside the covers directory.
 fn require_bare_file_name(file_name: &str) -> Result<&str, String> {
-    let is_bare_file_name =
-        !file_name.is_empty() && !file_name.contains(['/', '\\']) && file_name != "." && file_name != "..";
-    if is_bare_file_name {
+    let mut path_components = Path::new(file_name).components();
+    let is_single_plain_component = matches!(path_components.next(), Some(Component::Normal(_)))
+        && path_components.next().is_none()
+        && !file_name.contains(['/', '\\', ':']);
+    if is_single_plain_component && file_name.ends_with(".jpg") {
         Ok(file_name)
     } else {
-        Err(format!("Not a bare file name: {file_name}"))
+        Err(format!("Not a bare .jpg file name: {file_name}"))
     }
 }
 
@@ -152,7 +162,9 @@ mod tests {
     #[test]
     fn only_bare_file_names_are_accepted() {
         assert!(require_bare_file_name("ab67616d000082c1abc_large.jpg").is_ok());
-        for rejected_file_name in ["", ".", "..", "../albums.json", "/etc/passwd", "covers\\x.jpg"] {
+        for rejected_file_name in
+            ["", ".", "..", "../albums.json", "/etc/passwd", "covers\\x.jpg", "C:evil.jpg", "..jpg/x.jpg", "albums.json"]
+        {
             assert!(require_bare_file_name(rejected_file_name).is_err(), "{rejected_file_name}");
         }
     }
