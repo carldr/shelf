@@ -1,6 +1,6 @@
 import type { SavedAlbum } from "../library/saved_album";
 import { SAVED_ALBUM_SORT_ORDER_LABELS, type SavedAlbumSortOrder } from "../library/saved_album_sort_order";
-import { ShelfRenderer } from "../shelf/shelf_renderer";
+import { ShelfRenderer, type ShelfFrameTiming } from "../shelf/shelf_renderer";
 
 export interface ShelfViewOptions {
   saved_album_sort_order: SavedAlbumSortOrder;
@@ -29,11 +29,18 @@ export interface ShelfView {
 
 /**
  * Dev builds only: `VITE_SHELF_STRESS_TEST_ALBUM_COUNT=1200 pnpm tauri dev` repeats the library
- * to that many albums, sweeps the shelf back and forth, and shows frame timings in the toolbar.
+ * to that many albums, sweeps the shelf back and forth, and reports frame timings each second
+ * in the toolbar and the dev terminal.
+ * VITE_SHELF_STRESS_TEST_WITHOUT_COVERS=1 and VITE_SHELF_STRESS_TEST_WITHOUT_JEWEL_CASE=1 leave
+ * those parts out, to find what limits the frame rate.
  */
 const STRESS_TEST_ALBUM_COUNT = import.meta.env.DEV
   ? Number(import.meta.env.VITE_SHELF_STRESS_TEST_ALBUM_COUNT ?? 0)
   : 0;
+const STRESS_TEST_SWITCHES = {
+  without_covers: import.meta.env.DEV && import.meta.env.VITE_SHELF_STRESS_TEST_WITHOUT_COVERS === "1",
+  without_jewel_case: import.meta.env.DEV && import.meta.env.VITE_SHELF_STRESS_TEST_WITHOUT_JEWEL_CASE === "1",
+};
 
 /** The library screen: a toolbar above the shelf. Create it once; the shelf keeps its GPU state between showings. */
 export async function create_shelf_view(container: HTMLElement, options: ShelfViewOptions): Promise<ShelfView> {
@@ -67,18 +74,34 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
   const message_element = container.querySelector<HTMLElement>(".shelf_view_message")!;
   let message_timer: ReturnType<typeof setTimeout> | undefined;
 
-  const frame_durations_ms: number[] = [];
+  const shelf_frame_timings: ShelfFrameTiming[] = [];
+  let cover_load_count = 0;
   const shelf_renderer = await ShelfRenderer.create({
     host_element: container.querySelector(".shelf_view_canvas_host")!,
-    load_cover_bitmap: options.load_cover_bitmap,
+    load_cover_bitmap: STRESS_TEST_ALBUM_COUNT
+      ? (saved_album, size_px) => {
+          cover_load_count += 1;
+          return options.load_cover_bitmap(saved_album, size_px);
+        }
+      : options.load_cover_bitmap,
     on_album_click: options.on_album_click,
-    on_frame: STRESS_TEST_ALBUM_COUNT ? (frame_duration_ms) => frame_durations_ms.push(frame_duration_ms) : undefined,
+    on_frame: STRESS_TEST_ALBUM_COUNT ? (shelf_frame_timing) => shelf_frame_timings.push(shelf_frame_timing) : undefined,
+    stress_test_switches: STRESS_TEST_SWITCHES,
   });
 
   if (STRESS_TEST_ALBUM_COUNT) {
-    run_stress_test_sweep(shelf_renderer, frame_durations_ms, (stress_test_report) => {
-      sync_status_element.textContent = stress_test_report;
-    });
+    run_stress_test_sweep(
+      shelf_renderer,
+      shelf_frame_timings,
+      () => {
+        const counted_cover_loads = cover_load_count;
+        cover_load_count = 0;
+        return counted_cover_loads;
+      },
+      (stress_test_report) => {
+        sync_status_element.textContent = stress_test_report;
+      },
+    );
   }
 
   return {
@@ -114,12 +137,21 @@ function repeat_albums_to_count(saved_albums: readonly SavedAlbum[], album_count
   return Array.from({ length: album_count }, (_, album_index) => saved_albums[album_index % saved_albums.length]);
 }
 
+function median(values: number[]): number {
+  const sorted_values = [...values].sort((first, second) => first - second);
+  return sorted_values[Math.floor(sorted_values.length / 2)];
+}
+
 /** Sweeps from one end of the shelf to the other every 8 seconds and reports frame timings each second. */
 function run_stress_test_sweep(
   shelf_renderer: ShelfRenderer,
-  frame_durations_ms: number[],
+  shelf_frame_timings: ShelfFrameTiming[],
+  take_cover_load_count: () => number,
   show_report: (stress_test_report: string) => void,
 ): void {
+  const switch_names = Object.entries(STRESS_TEST_SWITCHES)
+    .filter(([, switch_enabled]) => switch_enabled)
+    .map(([switch_name]) => switch_name);
   const sweep_period_ms = 8000;
   const sweep_start_ms = performance.now();
   const move_scroll_target = () => {
@@ -132,18 +164,27 @@ function run_stress_test_sweep(
   requestAnimationFrame(move_scroll_target);
 
   setInterval(() => {
-    if (frame_durations_ms.length === 0) {
+    const cover_loads = take_cover_load_count();
+    if (shelf_frame_timings.length === 0) {
       return;
     }
+    const frame_durations_ms = shelf_frame_timings.map((shelf_frame_timing) => shelf_frame_timing.frame_duration_ms);
     const sorted_durations = [...frame_durations_ms].sort((first, second) => first - second);
-    const median_ms = sorted_durations[Math.floor(sorted_durations.length / 2)];
-    const worst_percentile_ms = sorted_durations[Math.floor(sorted_durations.length * 0.99)];
-    const long_frame_count = frame_durations_ms.filter((frame_duration_ms) => frame_duration_ms > 20).length;
-    show_report(
-      `Stress test: ${frame_durations_ms.length} frames/s, median ${median_ms.toFixed(1)} ms, ` +
-        `99th percentile ${worst_percentile_ms.toFixed(1)} ms, ${long_frame_count} frames over 20 ms`,
-    );
-    console.info(`[shelf_stress_test] ${frame_durations_ms.length} ${median_ms} ${worst_percentile_ms} ${long_frame_count}`);
-    frame_durations_ms.length = 0;
+    const stress_test_measurements = {
+      frames: shelf_frame_timings.length,
+      median_frame_ms: median(frame_durations_ms).toFixed(1),
+      p99_frame_ms: sorted_durations[Math.floor(sorted_durations.length * 0.99)].toFixed(1),
+      frames_over_20_ms: frame_durations_ms.filter((frame_duration_ms) => frame_duration_ms > 20).length,
+      median_layout_ms: median(shelf_frame_timings.map((shelf_frame_timing) => shelf_frame_timing.layout_ms)).toFixed(2),
+      median_render_ms: median(shelf_frame_timings.map((shelf_frame_timing) => shelf_frame_timing.render_ms)).toFixed(2),
+      cover_loads,
+      switches: switch_names.join(",") || "none",
+    };
+    const stress_test_report = Object.entries(stress_test_measurements)
+      .map(([measurement_name, measurement_value]) => `${measurement_name}=${measurement_value}`)
+      .join(" ");
+    show_report(stress_test_report);
+    console.info(`[shelf_stress_test] ${stress_test_report}`);
+    shelf_frame_timings.length = 0;
   }, 1000);
 }

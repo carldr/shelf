@@ -1,4 +1,14 @@
-import { Application, BitmapFont, BitmapText, Cache, Container, Graphics, Sprite, Texture } from "pixi.js";
+import {
+  Application,
+  BitmapFont,
+  BitmapText,
+  Cache,
+  Container,
+  Graphics,
+  Sprite,
+  Texture,
+  UPDATE_PRIORITY,
+} from "pixi.js";
 import type { SavedAlbum } from "../library/saved_album";
 import { ShelfCoverTextureCache } from "./shelf_cover_texture_cache";
 import {
@@ -55,7 +65,18 @@ export interface ShelfRendererOptions {
   load_cover_bitmap: (saved_album: SavedAlbum, size_px: number) => Promise<ImageBitmap | null>;
   on_album_click: (saved_album: SavedAlbum) => void;
   /** Receives the duration of each frame, for the performance overlay. */
-  on_frame?: (frame_duration_ms: number) => void;
+  on_frame?: (shelf_frame_timing: ShelfFrameTiming) => void;
+  /** Dev-only switches that leave out parts of the drawing, to find what limits the frame rate. */
+  stress_test_switches?: { without_covers: boolean; without_jewel_case: boolean };
+}
+
+export interface ShelfFrameTiming {
+  /** Time since the previous frame. */
+  frame_duration_ms: number;
+  /** Time spent laying out the shelf in this frame. */
+  layout_ms: number;
+  /** Time spent in Pixi's render call, which issues the WebGL commands. */
+  render_ms: number;
 }
 
 interface SpineLabelTexts {
@@ -149,6 +170,8 @@ export class ShelfRenderer {
   private scroll_target_x = 0;
   private snap_timer: ReturnType<typeof setTimeout> | undefined;
   private focused_album_index = -1;
+  private layout_start_ms = 0;
+  private layout_end_ms = 0;
   /** The last frame's layout, for hit testing clicks against what is on screen. */
   private drawn_opening_albums: OpeningAlbum[] = [];
   private drawn_album_index_range = { first_album_index: 0, last_album_index: -1 };
@@ -180,6 +203,21 @@ export class ShelfRenderer {
     this.update_geometry();
     this.listen_to_click_and_wheel();
     this.application.ticker.add((ticker) => this.render_frame(ticker.deltaMS));
+    if (this.options.on_frame) {
+      // Pixi renders at LOW priority, after the layout; this runs after the render.
+      this.application.ticker.add(
+        (ticker) => {
+          const render_end_ms = performance.now();
+          this.options.on_frame?.({
+            frame_duration_ms: ticker.deltaMS,
+            layout_ms: this.layout_end_ms - this.layout_start_ms,
+            render_ms: render_end_ms - this.layout_end_ms,
+          });
+        },
+        undefined,
+        UPDATE_PRIORITY.UTILITY,
+      );
+    }
   }
 
   set_albums(saved_albums: readonly SavedAlbum[]): void {
@@ -344,7 +382,12 @@ export class ShelfRenderer {
   }
 
   private render_frame(frame_duration_ms: number): void {
-    this.options.on_frame?.(frame_duration_ms);
+    this.layout_start_ms = performance.now();
+    this.lay_out_frame(frame_duration_ms);
+    this.layout_end_ms = performance.now();
+  }
+
+  private lay_out_frame(frame_duration_ms: number): void {
     const album_count = this.saved_albums.length;
     if (album_count === 0) {
       return;
@@ -440,6 +483,7 @@ export class ShelfRenderer {
     display.spine_insert.height = cover_size;
     display.jewel_case_overlay.width = drawn_spine_width;
     display.jewel_case_overlay.height = cover_size;
+    display.jewel_case_overlay.visible = !this.options.stress_test_switches?.without_jewel_case;
 
     display.spine_label.visible = open_amount < 0.6;
     display.spine_label.scale.y = 1 - open_amount;
@@ -449,9 +493,11 @@ export class ShelfRenderer {
     display.cover_face.visible = open_amount > CLOSED_OPEN_AMOUNT_THRESHOLD;
     if (display.cover_face.visible) {
       const saved_album = this.saved_albums[album_index];
-      const cover_texture = this.cover_texture_cache.get_or_start_loading(saved_album.spotify_album_id, (size_px) =>
-        this.options.load_cover_bitmap(saved_album, size_px),
-      );
+      const cover_texture = this.options.stress_test_switches?.without_covers
+        ? null
+        : this.cover_texture_cache.get_or_start_loading(saved_album.spotify_album_id, (size_px) =>
+            this.options.load_cover_bitmap(saved_album, size_px),
+          );
       display.cover_face.texture = cover_texture ?? Texture.WHITE;
       display.cover_face.x = drawn_spine_width;
       display.cover_face.width = drawn_cover_width;
