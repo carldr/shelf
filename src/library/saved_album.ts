@@ -8,13 +8,14 @@ export interface SavedAlbum {
   release_year: number | null;
   /** When the user saved the album, as an ISO 8601 timestamp. */
   added_at: string;
-  /** The Spotify image closest to 300 px wide, or null when the album has no image. */
+  /** The Spotify image closest to 640 px wide, or null when the album has no image. */
   cover_image_url: string | null;
   /** "#rrggbb", sampled once from the cached cover. Null until the cover is cached. */
   cover_dominant_colour: string | null;
 }
 
-const PREFERRED_COVER_IMAGE_WIDTH = 300;
+/** An open cover is about 320 pt, which is 640 px on a Retina display. */
+const PREFERRED_COVER_IMAGE_WIDTH = 640;
 
 /** The item shape of GET /me/albums, reduced to the fields Shelf reads. */
 export interface SpotifySavedAlbumItem {

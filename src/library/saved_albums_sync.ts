@@ -9,16 +9,17 @@ export type SavedAlbumsSyncProgress =
 
 /**
  * Fetches the whole library, caches covers, and writes albums.json.
- * Colours sampled in an earlier sync carry over, so that only new covers are decoded.
+ * A colour sampled in an earlier sync carries over while the cover URL is unchanged,
+ * so that only new covers are decoded.
  */
 export async function sync_saved_albums_library(
   spotify_web_api_client: Pick<SpotifyWebApiClient, "get_json">,
   previous_saved_albums_library: SavedAlbumsLibrary | null,
   on_progress: (sync_progress: SavedAlbumsSyncProgress) => void,
 ): Promise<SavedAlbumsLibrary> {
-  const previous_colours_by_album_id = new Map(
+  const previous_colours_by_cover_image_url = new Map(
     (previous_saved_albums_library?.saved_albums ?? []).map((saved_album) => [
-      saved_album.spotify_album_id,
+      saved_album.cover_image_url,
       saved_album.cover_dominant_colour,
     ]),
   );
@@ -27,7 +28,7 @@ export async function sync_saved_albums_library(
   );
   const fetched_albums_with_previous_colours = fetched_albums.map((saved_album) => ({
     ...saved_album,
-    cover_dominant_colour: previous_colours_by_album_id.get(saved_album.spotify_album_id) ?? null,
+    cover_dominant_colour: previous_colours_by_cover_image_url.get(saved_album.cover_image_url) ?? null,
   }));
   const saved_albums = await cache_album_covers(fetched_albums_with_previous_colours, (completed_count, total_count) =>
     on_progress({ sync_stage: "caching_covers", completed_count, total_count }),

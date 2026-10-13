@@ -56,8 +56,7 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
   const frame_durations_ms: number[] = [];
   const shelf_renderer = await ShelfRenderer.create({
     host_element: container.querySelector(".shelf_view_canvas_host")!,
-    cover_url_for_album: (saved_album) =>
-      saved_album.cover_image_url ? album_cover_file_url(saved_album.spotify_album_id) : null,
+    cover_url_for_album: album_cover_file_url,
     on_album_click: options.on_album_click,
     on_frame: STRESS_TEST_ALBUM_COUNT ? (frame_duration_ms) => frame_durations_ms.push(frame_duration_ms) : undefined,
   });

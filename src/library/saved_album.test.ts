@@ -34,7 +34,7 @@ function create_saved_album(overrides: Partial<SavedAlbum>): SavedAlbum {
 }
 
 describe("convert_spotify_saved_album_item", () => {
-  it("joins artists, reads the year and picks the image closest to 300 px", () => {
+  it("joins artists, reads the year and picks the image closest to 640 px", () => {
     const saved_album = convert_spotify_saved_album_item(
       create_spotify_saved_album_item("a1", {
         artists: [{ name: "Daft Punk" }, { name: "Pharrell Williams" }],
@@ -51,7 +51,7 @@ describe("convert_spotify_saved_album_item", () => {
       spotify_album_uri: "spotify:album:a1",
       artist_names: "Daft Punk, Pharrell Williams",
       release_year: 2013,
-      cover_image_url: "https://i.scdn.co/300",
+      cover_image_url: "https://i.scdn.co/640",
       cover_dominant_colour: null,
     });
   });
