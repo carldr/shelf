@@ -76,8 +76,8 @@ When the shelf opens, the album Spotify is playing is in the middle, and a green
 
 1. **Sign-in.** Shelf opens Spotify's consent page in your browser. A small server on `127.0.0.1:43821` receives the redirect. Shelf exchanges the code for tokens, stores the refresh token in the macOS Keychain, and keeps the access token in memory only.
 2. **Library sync.** Shelf reads your saved albums from `GET /me/albums`, 10 at a time, because Development Mode allows no more per page. It syncs on launch when the stored library is older than 6 hours, and when you choose **Refresh library**. When Spotify answers 429, Shelf waits for the time in `Retry-After`.
-3. **Cover cache.** Shelf downloads each cover once. It asks Spotify's image server for the 2000 px version, and falls back to the 640 px version that the Web API lists. Shelf samples each cover's dominant colour once and uses it for the spine.
-4. **The shelf.** PixiJS draws the shelf with WebGL. Only the albums on screen have display objects, so a library of 1,000 albums scrolls at 60 frames per second. Covers are decoded off the main thread at display size, and only the most recent few stay in memory.
+3. **Cover cache.** Shelf downloads each cover once. It asks Spotify's image server for the 2000 px version, and falls back to the 640 px version that the Web API lists. The Rust side then decodes each new cover once, writes a 256 px thumbnail, and samples the dominant colour for the spine. While a sync runs, a spinner covers the shelf.
+4. **The shelf.** PixiJS draws the shelf with WebGL. Only the albums on screen have display objects, so a library of 1,000 albums scrolls at 60 frames per second. An opening album shows its thumbnail at once. When an album stays in the middle for 100 ms, its full cover loads and fades in over the thumbnail.
 5. **Playing.** A click sends `PUT /me/player/play` with the album. Shelf picks the active Spotify device, or else the Spotify app on this Mac. If neither is available, Shelf opens the album in Spotify, waits for this Mac to appear as a device, and then plays.
 6. **Now playing.** While the shelf is open, Shelf reads `GET /me/player` every 5 seconds. It stops when the shelf closes.
 
@@ -87,7 +87,7 @@ Shelf keeps its data in `~/Library/Application Support/com.example.shelf/`:
 |---|---|
 | `app_settings.json` | Your Client ID, sort order, and whether demo mode is on. |
 | `albums.json` | The synced library. |
-| `covers/` | The cached covers. |
+| `covers/` | The cached covers and their thumbnails. |
 
 The Keychain item has the service `com.example.shelf` and the account `spotify_refresh_token`.
 To sign out, click **Disconnect** in Settings; Shelf then deletes the Keychain item.
@@ -109,13 +109,13 @@ src/                                   TypeScript frontend
     saved_albums_sync.ts               Fetches the library and caches covers
     saved_albums_library_store.ts      albums.json and its 6-hour staleness
     album_cover_cache.ts               Cover downloads and loading
-    album_dominant_colour.ts           Spine colour from the cover
     saved_album_sort_order.ts          Recently added, artist A–Z, release year
   shelf/
     shelf_layout.ts                    Spine and cover positions, scrolling, hit testing
     shelf_renderer.ts                  PixiJS drawing of the jewel cases
     shelf_spine_label.ts               Spine label fitting and contrast
-    shelf_cover_texture_cache.ts       Cover textures, most recent first
+    shelf_cover_texture_cache.ts       Full cover textures, most recent first
+    shelf_cover_thumbnail_textures.ts  Thumbnail textures for every album
   views/
     shelf_view.ts                      Toolbar and shelf
     spotify_connection_view.ts         First-run screen and Settings
@@ -124,6 +124,7 @@ src-tauri/src/                         Rust
   tray_menu_and_window.rs              Tray icon, menu, window placement and hiding
   oauth_loopback_callback_server.rs    Receives the sign-in redirect
   spotify_refresh_token_keychain.rs    Keychain storage of the refresh token
+  album_cover_thumbnail_and_colour.rs  Cover thumbnails and spine colours
 ```
 
 ## Licence
