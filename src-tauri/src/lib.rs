@@ -1,3 +1,4 @@
+mod album_cover_thumbnail_and_colour;
 mod oauth_loopback_callback_server;
 mod spotify_refresh_token_keychain;
 mod tray_menu_and_window;
@@ -21,6 +22,7 @@ pub fn run() {
             spotify_refresh_token_keychain::load_spotify_refresh_token,
             spotify_refresh_token_keychain::delete_spotify_refresh_token,
             oauth_loopback_callback_server::run_spotify_oauth_loopback_authorization,
+            album_cover_thumbnail_and_colour::write_album_cover_thumbnail_and_sample_colour,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Shelf");

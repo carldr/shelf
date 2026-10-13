@@ -20,3 +20,4 @@ keyring = "4"
 tauri-plugin-fs = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-os = "2"
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
