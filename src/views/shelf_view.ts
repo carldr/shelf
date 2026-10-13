@@ -11,7 +11,15 @@ export interface ShelfViewOptions {
   on_album_click: (saved_album: SavedAlbum) => void;
 }
 
+/** An inline message stays on the shelf this long. */
+const SHELF_MESSAGE_DURATION_MS = 5_000;
+
 export interface ShelfView {
+  /** Shows a short message over the shelf, such as a playback error. */
+  show_message(message_text: string): void;
+  set_now_playing_album(spotify_album_id: string | null): void;
+  /** Puts the album in the middle, open. Returns false if it is not in the library. */
+  jump_to_album(spotify_album_id: string): boolean;
   show_albums(sorted_saved_albums: readonly SavedAlbum[]): void;
   show_sync_status(sync_status_text: string): void;
   pause(): void;
@@ -37,7 +45,9 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
         <button type="button" class="shelf_view_refresh_button" title="Refresh library">Refresh</button>
         <button type="button" class="shelf_view_settings_button" title="Settings">Settings</button>
       </header>
-      <div class="shelf_view_canvas_host"></div>
+      <div class="shelf_view_canvas_host">
+        <p class="shelf_view_message" role="alert" hidden></p>
+      </div>
     </section>`;
 
   const album_count_element = container.querySelector(".shelf_view_album_count")!;
@@ -52,6 +62,9 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
   );
   container.querySelector(".shelf_view_refresh_button")!.addEventListener("click", options.on_refresh_library);
   container.querySelector(".shelf_view_settings_button")!.addEventListener("click", options.on_open_settings);
+
+  const message_element = container.querySelector<HTMLElement>(".shelf_view_message")!;
+  let message_timer: ReturnType<typeof setTimeout> | undefined;
 
   const frame_durations_ms: number[] = [];
   const shelf_renderer = await ShelfRenderer.create({
@@ -75,6 +88,14 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
       album_count_element.textContent = `${shown_albums.length} albums`;
       shelf_renderer.set_albums(shown_albums);
     },
+    show_message(message_text) {
+      message_element.textContent = message_text;
+      message_element.hidden = false;
+      clearTimeout(message_timer);
+      message_timer = setTimeout(() => (message_element.hidden = true), SHELF_MESSAGE_DURATION_MS);
+    },
+    set_now_playing_album: (spotify_album_id) => shelf_renderer.set_now_playing_album(spotify_album_id),
+    jump_to_album: (spotify_album_id) => shelf_renderer.jump_to_album(spotify_album_id),
     show_sync_status(sync_status_text) {
       if (!STRESS_TEST_ALBUM_COUNT) {
         sync_status_element.textContent = sync_status_text;

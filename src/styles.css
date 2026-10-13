@@ -176,3 +176,18 @@ code {
   position: absolute;
   inset: 0;
 }
+
+.shelf_view_message {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgba(20, 20, 22, 0.88);
+  border: 1px solid var(--shelf_control_border);
+  font-size: 13px;
+  pointer-events: none;
+}
