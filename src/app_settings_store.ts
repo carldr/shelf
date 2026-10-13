@@ -7,11 +7,14 @@ export interface AppSettings {
   /** The user's own Spotify app Client ID. Shelf ships with none. */
   spotify_client_id: string | null;
   saved_album_sort_order: SavedAlbumSortOrder;
+  /** The shelf shows a generated library and needs no Spotify setup. Connecting Spotify turns it off. */
+  demo_mode_enabled: boolean;
 }
 
 const DEFAULT_APP_SETTINGS: AppSettings = {
   spotify_client_id: null,
   saved_album_sort_order: "recently_added",
+  demo_mode_enabled: false,
 };
 
 export async function load_app_settings(): Promise<AppSettings> {

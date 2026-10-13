@@ -3,6 +3,8 @@ import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { hostname } from "@tauri-apps/plugin-os";
 import { load_app_settings, save_app_settings, type AppSettings } from "./app_settings_store";
+import { draw_demo_album_cover_bitmap } from "./demo/demo_album_cover";
+import { generate_demo_saved_albums } from "./demo/demo_saved_albums";
 import { load_cached_album_cover_bitmap, resolve_album_covers_directory_path } from "./library/album_cover_cache";
 import type { SavedAlbum } from "./library/saved_album";
 import { sort_saved_albums } from "./library/saved_album_sort_order";
@@ -68,6 +70,10 @@ async function show_shelf_window_contents(): Promise<void> {
 }
 
 async function play_album_on_spotify(saved_album: SavedAlbum): Promise<void> {
+  if (app_settings.demo_mode_enabled) {
+    shelf_view?.show_message("This is the demo library. Connect Spotify in Settings to play your own albums.");
+    return;
+  }
   if (!connected_spotify_account) {
     return;
   }
@@ -89,6 +95,10 @@ async function play_album_on_spotify(saved_album: SavedAlbum): Promise<void> {
 async function start_shelf(): Promise<void> {
   app_settings = await load_app_settings();
   await resolve_album_covers_directory_path();
+  if (app_settings.demo_mode_enabled) {
+    await show_demo_library();
+    return;
+  }
   if (!app_settings.spotify_client_id) {
     show_spotify_connection_view(null);
     return;
@@ -148,7 +158,12 @@ function show_spotify_connection_view(status_message: string | null): void {
         token_response,
       );
       connected_spotify_account = await connect_spotify_account(access_token_session);
-      // The new login can be a different Spotify account, so the stored library is not trusted.
+      if (app_settings.demo_mode_enabled) {
+        app_settings = { ...app_settings, demo_mode_enabled: false };
+        await save_app_settings(app_settings);
+      }
+      // The new login can be a different Spotify account, so the stored library is synced again.
+      saved_albums_library = await load_saved_albums_library();
       await show_library_view();
       await sync_library();
     },
@@ -158,8 +173,22 @@ function show_spotify_connection_view(status_message: string | null): void {
       connected_spotify_account = null;
       show_spotify_connection_view(null);
     },
-    on_done: connected_spotify_account ? () => void show_library_view() : null,
+    on_done: connected_spotify_account || app_settings.demo_mode_enabled ? () => void show_library_view() : null,
+    on_try_demo:
+      connected_spotify_account || app_settings.demo_mode_enabled
+        ? null
+        : async () => {
+            app_settings = { ...app_settings, demo_mode_enabled: true };
+            await save_app_settings(app_settings);
+            await show_demo_library();
+          },
   });
+}
+
+/** Shows the generated library. It lives in memory only; nothing is written to albums.json. */
+async function show_demo_library(): Promise<void> {
+  saved_albums_library = { synced_at: new Date().toISOString(), saved_albums: generate_demo_saved_albums() };
+  await show_library_view();
 }
 
 async function show_library_view(): Promise<void> {
@@ -175,11 +204,16 @@ async function show_library_view(): Promise<void> {
     on_refresh_library: () => void sync_library(),
     on_open_settings: () => show_spotify_connection_view(null),
     on_album_click: (saved_album) => void play_album_on_spotify(saved_album),
-    load_cover_bitmap: load_cached_album_cover_bitmap,
+    load_cover_bitmap: (saved_album, size_px) =>
+      app_settings.demo_mode_enabled
+        ? draw_demo_album_cover_bitmap(saved_album, size_px)
+        : load_cached_album_cover_bitmap(saved_album, size_px),
   });
   shelf_view.resume();
   show_sorted_albums();
-  if (library_sync_in_progress) {
+  if (app_settings.demo_mode_enabled) {
+    shelf_view.show_sync_status("Demo library. Connect Spotify in Settings to see your own albums.");
+  } else if (library_sync_in_progress) {
     shelf_view.show_sync_status("Syncing…");
   } else if (saved_albums_library) {
     shelf_view.show_sync_status(`Synced ${new Date(saved_albums_library.synced_at).toLocaleString()}`);

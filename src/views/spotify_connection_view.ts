@@ -11,8 +11,10 @@ export interface SpotifyConnectionViewOptions {
   status_message: string | null;
   on_connect: (spotify_client_id: string) => Promise<void>;
   on_disconnect: () => Promise<void>;
-  /** Returns to the library. Only offered while connected. */
+  /** Returns to the library. Only offered while connected or in demo mode. */
   on_done: (() => void) | null;
+  /** Shows the generated demo library. Only offered before Spotify is connected. */
+  on_try_demo: (() => void) | null;
 }
 
 /**
@@ -30,6 +32,7 @@ export function render_spotify_connection_view(container: HTMLElement, options: 
         </p>
         <p class="spotify_connection_view_status" role="status"></p>
         <div class="spotify_connection_view_header_buttons">
+          <button type="button" class="spotify_connection_view_try_demo_button" hidden>Try the demo</button>
           <button type="button" class="spotify_connection_view_disconnect_button" hidden>Disconnect</button>
           <button type="button" class="spotify_connection_view_done_button" hidden>Done</button>
         </div>
@@ -82,6 +85,11 @@ export function render_spotify_connection_view(container: HTMLElement, options: 
   if (options.on_done) {
     done_button.hidden = false;
     done_button.addEventListener("click", options.on_done);
+  }
+  if (options.on_try_demo) {
+    const try_demo_button = container.querySelector<HTMLButtonElement>(".spotify_connection_view_try_demo_button")!;
+    try_demo_button.hidden = false;
+    try_demo_button.addEventListener("click", options.on_try_demo);
   }
 
   container.querySelector(".spotify_connection_view_dashboard_link")!.addEventListener("click", (click_event) => {
