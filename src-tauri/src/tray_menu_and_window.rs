@@ -46,7 +46,7 @@ pub fn install_tray_icon_and_window_behaviour(app: &mut App) -> tauri::Result<()
         ],
     )?;
 
-    TrayIconBuilder::with_id("shelf_tray_icon")
+    let shelf_tray_icon = TrayIconBuilder::with_id("shelf_tray_icon")
         .icon(tauri::include_image!("icons/tray_icon_template.png"))
         .icon_as_template(true)
         .tooltip("Shelf")
@@ -75,6 +75,15 @@ pub fn install_tray_icon_and_window_behaviour(app: &mut App) -> tauri::Result<()
             _ => {}
         })
         .build(app)?;
+
+    // Debug builds only: SHELF_SHOW_WINDOW_ON_LAUNCH=1 shows the window without a click and
+    // without taking focus, so that performance runs need no mouse input.
+    if cfg!(debug_assertions) && std::env::var("SHELF_SHOW_WINDOW_ON_LAUNCH").as_deref() == Ok("1") {
+        if let Ok(Some(tray_icon_rect)) = shelf_tray_icon.rect() {
+            anchor_shelf_window_under_tray_icon(&shelf_window, tray_icon_rect);
+        }
+        let _ = shelf_window.show();
+    }
 
     Ok(())
 }
