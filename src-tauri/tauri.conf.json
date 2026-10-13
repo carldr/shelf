@@ -16,7 +16,7 @@
         "label": "shelf",
         "title": "Shelf",
         "width": 900,
-        "height": 480,
+        "height": 640,
         "visible": false,
         "decorations": false,
         "transparent": true,
