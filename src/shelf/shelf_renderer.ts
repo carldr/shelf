@@ -190,6 +190,7 @@ export class ShelfRenderer {
       cover_size,
       edge_padding: SHELF_EDGE_PADDING,
     };
+    this.cover_texture_cache.set_texture_size_px(Math.round(cover_size * window.devicePixelRatio));
     this.spine_label_texts_by_album_index = [];
     for (const [album_index, display] of this.displays_by_album_index) {
       this.release_display(album_index, display);
