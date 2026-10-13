@@ -39,10 +39,10 @@ describe("choose_spotify_playback_device", () => {
 describe("play_spotify_album", () => {
   function create_playback_dependencies(device_lists: SpotifyPlaybackDevice[][]) {
     const sent_requests: { path: string; body: unknown }[] = [];
-    const opened_urls: string[] = [];
+    const launched_album_uris: string[] = [];
     return {
       sent_requests,
-      opened_urls,
+      launched_album_uris,
       dependencies: {
         spotify_web_api_client: {
           get_json: async <ResponseBody>(path: string) => {
@@ -55,27 +55,31 @@ describe("play_spotify_album", () => {
           },
         },
         hostname: "Office-Computer.local",
-        open_url: async (url: string) => {
-          opened_urls.push(url);
+        launch_spotify_app: async (spotify_album_uri: string) => {
+          launched_album_uris.push(spotify_album_uri);
         },
         wait_milliseconds: async () => {},
       },
     };
   }
 
-  it("plays on the chosen device without opening Spotify", async () => {
-    const { dependencies, sent_requests, opened_urls } = create_playback_dependencies([[this_mac]]);
+  it("plays on the chosen device without starting Spotify", async () => {
+    const { dependencies, sent_requests, launched_album_uris } = create_playback_dependencies([[this_mac]]);
     await play_spotify_album("spotify:album:abc", dependencies);
     expect(sent_requests).toEqual([
       { path: "/me/player/play?device_id=mac", body: { context_uri: "spotify:album:abc" } },
     ]);
-    expect(opened_urls).toEqual([]);
+    expect(launched_album_uris).toEqual([]);
   });
 
-  it("opens Spotify, waits for this computer to appear, then plays there", async () => {
-    const { dependencies, sent_requests, opened_urls } = create_playback_dependencies([[phone], [phone], [phone, this_mac]]);
+  it("starts Spotify, waits for this computer to appear, then plays there", async () => {
+    const { dependencies, sent_requests, launched_album_uris } = create_playback_dependencies([
+      [phone],
+      [phone],
+      [phone, this_mac],
+    ]);
     await play_spotify_album("spotify:album:abc", dependencies);
-    expect(opened_urls).toEqual(["spotify:album:abc"]);
+    expect(launched_album_uris).toEqual(["spotify:album:abc"]);
     expect(sent_requests).toEqual([
       { path: "/me/player/play?device_id=mac", body: { context_uri: "spotify:album:abc" } },
     ]);

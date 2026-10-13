@@ -15,8 +15,8 @@ export interface SpotifyAlbumPlaybackDependencies {
   spotify_web_api_client: Pick<SpotifyWebApiClient, "get_json" | "send_request">;
   /** This machine's hostname, such as "Office-Computer.local". */
   hostname: string;
-  /** Opens a spotify: URI, which starts the Spotify app if it is not running. */
-  open_url: (url: string) => Promise<void>;
+  /** Starts the Spotify app on this computer, so that it registers as a device. */
+  launch_spotify_app: (spotify_album_uri: string) => Promise<void>;
   wait_milliseconds: (milliseconds: number) => Promise<void>;
 }
 
@@ -62,8 +62,8 @@ async function fetch_spotify_playback_devices(
 
 /**
  * Starts `spotify_album_uri` from its first track.
- * Without a usable device, it opens the album in the Spotify app, waits for this computer
- * to appear as a device, and then plays there.
+ * Without a usable device, it starts the Spotify app, waits for this computer to appear as
+ * a device, and then plays there.
  */
 export async function play_spotify_album(
   spotify_album_uri: string,
@@ -74,7 +74,7 @@ export async function play_spotify_album(
     dependencies.hostname,
   );
   if (!device_id) {
-    await dependencies.open_url(spotify_album_uri);
+    await dependencies.launch_spotify_app(spotify_album_uri);
     for (
       let waited_ms = 0;
       !device_id && waited_ms < SPOTIFY_APP_STARTUP_TIMEOUT_MS;
