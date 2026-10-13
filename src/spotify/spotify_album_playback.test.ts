@@ -7,32 +7,35 @@ import {
 } from "./spotify_album_playback";
 import { SpotifyWebApiError } from "./spotify_web_api_client";
 
-const phone: SpotifyPlaybackDevice = { id: "phone", name: "Kitchen Speaker", type: "Smartphone", is_active: false };
-const this_mac: SpotifyPlaybackDevice = { id: "mac", name: "Office Computer", type: "Computer", is_active: false };
-const other_mac: SpotifyPlaybackDevice = { id: "laptop", name: "Work MacBook", type: "Computer", is_active: false };
+const speaker: SpotifyPlaybackDevice = { id: "speaker", name: "Kitchen Speaker", type: "Speaker", is_active: false };
+const this_computer: SpotifyPlaybackDevice = { id: "office", name: "Office Computer", type: "Computer", is_active: false };
+const other_computer: SpotifyPlaybackDevice = { id: "laptop", name: "Laptop", type: "Computer", is_active: false };
 
 describe("choose_spotify_playback_device", () => {
   it("prefers the active device", () => {
-    expect(choose_spotify_playback_device([this_mac, { ...phone, is_active: true }], "Office-Computer.local")).toBe(
-      "phone",
-    );
+    expect(
+      choose_spotify_playback_device([this_computer, { ...speaker, is_active: true }], "Office-Computer.local"),
+    ).toBe("speaker");
   });
 
   it("otherwise picks the computer whose name matches this machine's hostname", () => {
-    expect(choose_spotify_playback_device([phone, other_mac, this_mac], "Office-Computer.local")).toBe("mac");
+    expect(choose_spotify_playback_device([speaker, other_computer, this_computer], "Office-Computer.local")).toBe(
+      "office",
+    );
   });
 
   it("ignores the hostname's domain", () => {
-    const office-computer: SpotifyPlaybackDevice = { id: "office-computer", name: "office-computer", type: "Computer", is_active: false };
-    expect(choose_spotify_playback_device([phone, other_mac, office-computer], "office-computer.example.net")).toBe("office-computer");
+    expect(
+      choose_spotify_playback_device([speaker, other_computer, this_computer], "office-computer.example.net"),
+    ).toBe("office");
   });
 
   it("uses the only computer when no name matches", () => {
-    expect(choose_spotify_playback_device([phone, other_mac], "office-computer.example.net")).toBe("laptop");
+    expect(choose_spotify_playback_device([speaker, other_computer], "studio.example.net")).toBe("laptop");
   });
 
   it("returns null when nothing is active, no name matches and there are several computers", () => {
-    expect(choose_spotify_playback_device([phone, other_mac, this_mac], "office-computer.example.net")).toBeNull();
+    expect(choose_spotify_playback_device([speaker, other_computer, this_computer], "studio.example.net")).toBeNull();
   });
 });
 
@@ -64,24 +67,24 @@ describe("play_spotify_album", () => {
   }
 
   it("plays on the chosen device without starting Spotify", async () => {
-    const { dependencies, sent_requests, launched_album_uris } = create_playback_dependencies([[this_mac]]);
+    const { dependencies, sent_requests, launched_album_uris } = create_playback_dependencies([[this_computer]]);
     await play_spotify_album("spotify:album:abc", dependencies);
     expect(sent_requests).toEqual([
-      { path: "/me/player/play?device_id=mac", body: { context_uri: "spotify:album:abc" } },
+      { path: "/me/player/play?device_id=office", body: { context_uri: "spotify:album:abc" } },
     ]);
     expect(launched_album_uris).toEqual([]);
   });
 
   it("starts Spotify, waits for this computer to appear, then plays there", async () => {
     const { dependencies, sent_requests, launched_album_uris } = create_playback_dependencies([
-      [phone],
-      [phone],
-      [phone, this_mac],
+      [speaker],
+      [speaker],
+      [speaker, this_computer],
     ]);
     await play_spotify_album("spotify:album:abc", dependencies);
     expect(launched_album_uris).toEqual(["spotify:album:abc"]);
     expect(sent_requests).toEqual([
-      { path: "/me/player/play?device_id=mac", body: { context_uri: "spotify:album:abc" } },
+      { path: "/me/player/play?device_id=office", body: { context_uri: "spotify:album:abc" } },
     ]);
   });
 
