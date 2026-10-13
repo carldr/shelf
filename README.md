@@ -43,10 +43,22 @@ Shelf then syncs your library. The first sync downloads every cover, so it takes
 
 ## Build and run
 
+Install the tools, if you do not have them:
+
+1. Install the Xcode Command Line Tools: `xcode-select --install`.
+2. Install Rust with [rustup](https://rustup.rs): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`.
+3. Install Node.js 22.12 or later from [nodejs.org](https://nodejs.org), or with `brew install node`.
+4. Turn on pnpm, which ships with Node.js: `corepack enable pnpm`.
+
+Then install the project's packages and start Shelf:
+
 ```sh
 pnpm install
 pnpm tauri dev
 ```
+
+The first `pnpm tauri dev` compiles every Rust crate, so it takes a few minutes.
+Shelf appears as an icon in the menu bar, not in the Dock.
 
 | Command | What it does |
 |---|---|

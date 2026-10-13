@@ -13,3 +13,9 @@ covers/
 app_settings.json
 
 .DS_Store
+*.log
+
+# Local editor and assistant settings.
+.vscode/
+.idea/
+.claude/settings.local.json
