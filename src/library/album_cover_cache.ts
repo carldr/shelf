@@ -1,7 +1,6 @@
-import { convertFileSrc } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { appDataDir, join } from "@tauri-apps/api/path";
-import { BaseDirectory, exists, mkdir, readDir, readFile, remove, writeFile } from "@tauri-apps/plugin-fs";
-import { compute_dominant_colour_from_image_blob } from "./album_dominant_colour";
+import { BaseDirectory, exists, mkdir, readDir, remove, writeFile } from "@tauri-apps/plugin-fs";
 import type { SavedAlbum } from "./saved_album";
 
 const ALBUM_COVERS_DIRECTORY_NAME = "covers";
@@ -38,7 +37,6 @@ function album_cover_file_name(cover_image_url: string): string {
  * that passes the middle during a flick cannot keep up with 60 frames per second.
  */
 export const ALBUM_COVER_THUMBNAIL_SIZE_PX = 256;
-const ALBUM_COVER_THUMBNAIL_JPEG_QUALITY = 0.88;
 
 function album_cover_thumbnail_file_name(cover_image_url: string): string {
   return `${cover_image_url.slice(cover_image_url.lastIndexOf("/") + 1)}_thumbnail_${ALBUM_COVER_THUMBNAIL_SIZE_PX}.jpg`;
@@ -133,38 +131,17 @@ async function cache_album_cover(saved_album: SavedAlbum): Promise<SavedAlbum> {
     return saved_album;
   }
 
-  let cover_image_bytes: Uint8Array;
-  if (cover_is_cached) {
-    cover_image_bytes = await readFile(cover_relative_path, { baseDir: BaseDirectory.AppData });
-  } else {
-    cover_image_bytes = await download_largest_cover_image(saved_album.cover_image_url);
+  if (!cover_is_cached) {
+    const cover_image_bytes = await download_largest_cover_image(saved_album.cover_image_url);
     await writeFile(cover_relative_path, cover_image_bytes, { baseDir: BaseDirectory.AppData });
   }
-  const cover_image_blob = new Blob([cover_image_bytes as BlobPart], { type: "image/jpeg" });
-  if (!thumbnail_is_cached) {
-    await writeFile(thumbnail_relative_path, await encode_cover_thumbnail(cover_image_blob), {
-      baseDir: BaseDirectory.AppData,
-    });
-  }
-  const cover_dominant_colour =
-    saved_album.cover_dominant_colour ?? (await compute_dominant_colour_from_image_blob(cover_image_blob));
+  // album_cover_thumbnail_and_colour.rs decodes the cover once, off the webview, for both.
+  const cover_dominant_colour = await invoke<string>("write_album_cover_thumbnail_and_sample_colour", {
+    coverFileName: album_cover_file_name(saved_album.cover_image_url),
+    thumbnailFileName: album_cover_thumbnail_file_name(saved_album.cover_image_url),
+    thumbnailSizePx: ALBUM_COVER_THUMBNAIL_SIZE_PX,
+  });
   return { ...saved_album, cover_dominant_colour };
-}
-
-async function encode_cover_thumbnail(cover_image_blob: Blob): Promise<Uint8Array> {
-  const thumbnail_bitmap = await createImageBitmap(cover_image_blob, {
-    resizeWidth: ALBUM_COVER_THUMBNAIL_SIZE_PX,
-    resizeHeight: ALBUM_COVER_THUMBNAIL_SIZE_PX,
-    resizeQuality: "high",
-  });
-  const thumbnail_canvas = new OffscreenCanvas(ALBUM_COVER_THUMBNAIL_SIZE_PX, ALBUM_COVER_THUMBNAIL_SIZE_PX);
-  thumbnail_canvas.getContext("2d")!.drawImage(thumbnail_bitmap, 0, 0);
-  thumbnail_bitmap.close();
-  const thumbnail_blob = await thumbnail_canvas.convertToBlob({
-    type: "image/jpeg",
-    quality: ALBUM_COVER_THUMBNAIL_JPEG_QUALITY,
-  });
-  return new Uint8Array(await thumbnail_blob.arrayBuffer());
 }
 
 async function download_largest_cover_image(cover_image_url: string): Promise<Uint8Array> {

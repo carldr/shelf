@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { compute_dominant_colour_from_rgba_pixels } from "./album_dominant_colour";
 import { convert_spotify_saved_album_item, type SavedAlbum, type SpotifySavedAlbumItem } from "./saved_album";
 import { sort_saved_albums } from "./saved_album_sort_order";
 import { fetch_all_saved_albums } from "./saved_albums_sync";
@@ -109,23 +108,5 @@ describe("sort_saved_albums", () => {
 
   it("puts the oldest release first and unknown years last", () => {
     expect(sorted_ids("release_year")).toEqual(["beatles", "abba", "unknown_year"]);
-  });
-});
-
-describe("compute_dominant_colour_from_rgba_pixels", () => {
-  function create_rgba_pixels(pixel_colours: [number, number, number, number][]): Uint8ClampedArray {
-    return new Uint8ClampedArray(pixel_colours.flat());
-  }
-
-  it("prefers a vivid colour over a slightly larger area of grey", () => {
-    const rgba_pixels = create_rgba_pixels([
-      ...Array.from({ length: 12 }, () => [120, 120, 120, 255] as [number, number, number, number]),
-      ...Array.from({ length: 10 }, () => [220, 30, 40, 255] as [number, number, number, number]),
-    ]);
-    expect(compute_dominant_colour_from_rgba_pixels(rgba_pixels)).toBe("#dc1e28");
-  });
-
-  it("ignores transparent pixels and falls back to mid grey when nothing is opaque", () => {
-    expect(compute_dominant_colour_from_rgba_pixels(create_rgba_pixels([[255, 0, 0, 0]]))).toBe("#808080");
   });
 });
