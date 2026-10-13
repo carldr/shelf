@@ -53,6 +53,12 @@ export class SpotifyWebApiClient {
     return (await response.json()) as ResponseBody;
   }
 
+  /** Like get_json, but returns null for 204 No Content. */
+  async get_json_or_null<ResponseBody>(path_or_url: string): Promise<ResponseBody | null> {
+    const response = await this.send_request(path_or_url, { method: "GET" });
+    return response.status === 204 ? null : ((await response.json()) as ResponseBody);
+  }
+
   async send_request(path_or_url: string, request_init: RequestInit): Promise<Response> {
     const url = path_or_url.startsWith("https://") ? path_or_url : SPOTIFY_WEB_API_BASE_URL + path_or_url;
     let access_token = await this.access_token_provider.get_access_token();

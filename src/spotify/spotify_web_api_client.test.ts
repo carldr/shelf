@@ -77,6 +77,11 @@ describe("SpotifyWebApiClient", () => {
     expect(access_token_provider.refresh_count).toBe(1);
   });
 
+  it("returns null for 204 No Content, as /me/player sends when nothing is playing", async () => {
+    const { spotify_web_api_client } = create_client_with_responses([new Response(null, { status: 204 })]);
+    await expect(spotify_web_api_client.get_json_or_null("/me/player")).resolves.toBeNull();
+  });
+
   it("reports Spotify's error reason, such as NO_ACTIVE_DEVICE", async () => {
     const { spotify_web_api_client } = create_client_with_responses([
       new Response(JSON.stringify({ error: { status: 404, message: "Player command failed", reason: "NO_ACTIVE_DEVICE" } }), {
