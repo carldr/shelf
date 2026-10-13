@@ -4,6 +4,10 @@
   "description": "Permissions for the shelf window",
   "windows": ["shelf"],
   "permissions": [
-    "core:default"
+    "core:default",
+    "opener:default",
+    "fs:allow-appdata-read-recursive",
+    "fs:allow-appdata-write-recursive",
+    "fs:allow-appdata-meta-recursive"
   ]
 }

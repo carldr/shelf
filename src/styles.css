@@ -3,6 +3,10 @@
   --shelf_text_colour: rgba(255, 255, 255, 0.92);
   --shelf_muted_text_colour: rgba(255, 255, 255, 0.55);
   --shelf_corner_radius: 12px;
+  --shelf_accent_colour: #1ed760;
+  --shelf_error_colour: #ff7a6b;
+  --shelf_control_background: rgba(255, 255, 255, 0.1);
+  --shelf_control_border: rgba(255, 255, 255, 0.18);
   font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
   font-size: 13px;
 }
@@ -24,4 +28,101 @@ body {
   height: 100%;
   box-sizing: border-box;
   border-radius: var(--shelf_corner_radius);
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+  background: var(--shelf_control_background);
+  border: 1px solid var(--shelf_control_border);
+  border-radius: 6px;
+  padding: 4px 10px;
+}
+
+button:disabled {
+  opacity: 0.5;
+}
+
+button[type="submit"] {
+  background: var(--shelf_accent_colour);
+  border-color: transparent;
+  color: #000;
+  font-weight: 600;
+}
+
+input:focus {
+  outline: 2px solid var(--shelf_accent_colour);
+  outline-offset: -1px;
+}
+
+a {
+  color: var(--shelf_accent_colour);
+}
+
+code {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Spotify connection view: first run and Settings. */
+
+.spotify_connection_view {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 28px;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 22px 26px;
+}
+
+.spotify_connection_view_header h1 {
+  font-size: 17px;
+  margin: 0 0 8px;
+}
+
+.spotify_connection_view_explanation {
+  color: var(--shelf_muted_text_colour);
+  margin: 0 0 10px;
+  line-height: 1.4;
+}
+
+.spotify_connection_view_status {
+  min-height: 1.4em;
+  margin: 0 0 10px;
+  line-height: 1.4;
+}
+
+.spotify_connection_view_status_error {
+  color: var(--shelf_error_colour);
+}
+
+.spotify_connection_view_header_buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.spotify_connection_view_steps {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  line-height: 1.5;
+}
+
+.spotify_connection_view_redirect_uri_row,
+.spotify_connection_view_client_id_form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.spotify_connection_view_client_id_form input {
+  width: 300px;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12px;
 }
