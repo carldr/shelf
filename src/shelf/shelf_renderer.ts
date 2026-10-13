@@ -51,7 +51,8 @@ const TURNING_COVER_MINIMUM_BRIGHTNESS = 0.55;
 
 export interface ShelfRendererOptions {
   host_element: HTMLElement;
-  cover_url_for_album: (saved_album: SavedAlbum) => string | null;
+  /** Produces the album's cover at `size_px` square, or null when it has none. */
+  load_cover_bitmap: (saved_album: SavedAlbum, size_px: number) => Promise<ImageBitmap | null>;
   on_album_click: (saved_album: SavedAlbum) => void;
   /** Receives the duration of each frame, for the performance overlay. */
   on_frame?: (frame_duration_ms: number) => void;
@@ -448,8 +449,9 @@ export class ShelfRenderer {
     display.cover_face.visible = open_amount > CLOSED_OPEN_AMOUNT_THRESHOLD;
     if (display.cover_face.visible) {
       const saved_album = this.saved_albums[album_index];
-      const cover_url = this.options.cover_url_for_album(saved_album);
-      const cover_texture = cover_url ? this.cover_texture_cache.get_or_start_loading(cover_url) : null;
+      const cover_texture = this.cover_texture_cache.get_or_start_loading(saved_album.spotify_album_id, (size_px) =>
+        this.options.load_cover_bitmap(saved_album, size_px),
+      );
       display.cover_face.texture = cover_texture ?? Texture.WHITE;
       display.cover_face.x = drawn_spine_width;
       display.cover_face.width = drawn_cover_width;

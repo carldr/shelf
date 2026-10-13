@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { hostname } from "@tauri-apps/plugin-os";
 import { load_app_settings, save_app_settings, type AppSettings } from "./app_settings_store";
-import { resolve_album_covers_directory_path } from "./library/album_cover_cache";
+import { load_cached_album_cover_bitmap, resolve_album_covers_directory_path } from "./library/album_cover_cache";
 import type { SavedAlbum } from "./library/saved_album";
 import { sort_saved_albums } from "./library/saved_album_sort_order";
 import {
@@ -175,6 +175,7 @@ async function show_library_view(): Promise<void> {
     on_refresh_library: () => void sync_library(),
     on_open_settings: () => show_spotify_connection_view(null),
     on_album_click: (saved_album) => void play_album_on_spotify(saved_album),
+    load_cover_bitmap: load_cached_album_cover_bitmap,
   });
   shelf_view.resume();
   show_sorted_albums();

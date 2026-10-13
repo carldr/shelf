@@ -38,13 +38,13 @@ function album_cover_relative_path(cover_image_url: string): string {
 
 let album_covers_directory_path: string | null = null;
 
-/** Resolves the covers directory once; call before album_cover_file_url. */
+/** Resolves the covers directory once; call before load_cached_album_cover_bitmap. */
 export async function resolve_album_covers_directory_path(): Promise<void> {
   album_covers_directory_path = await join(await appDataDir(), ALBUM_COVERS_DIRECTORY_NAME);
 }
 
 /** An asset-protocol URL that the webview can load as an image, or null when the album has no cover. */
-export function album_cover_file_url(saved_album: SavedAlbum): string | null {
+function album_cover_file_url(saved_album: SavedAlbum): string | null {
   if (!album_covers_directory_path) {
     throw new Error("resolve_album_covers_directory_path has not run.");
   }
@@ -52,6 +52,26 @@ export function album_cover_file_url(saved_album: SavedAlbum): string | null {
     return null;
   }
   return convertFileSrc(`${album_covers_directory_path}/${album_cover_file_name(saved_album.cover_image_url)}`);
+}
+
+/**
+ * Reads the album's cached cover and decodes it at `size_px` square.
+ * createImageBitmap decodes and scales off the main thread, so scrolling does not stall.
+ */
+export async function load_cached_album_cover_bitmap(saved_album: SavedAlbum, size_px: number): Promise<ImageBitmap | null> {
+  const cover_file_url = album_cover_file_url(saved_album);
+  if (!cover_file_url) {
+    return null;
+  }
+  const cover_response = await fetch(cover_file_url);
+  if (!cover_response.ok) {
+    throw new Error(`Cover file request failed (${cover_response.status})`);
+  }
+  return createImageBitmap(await cover_response.blob(), {
+    resizeWidth: size_px,
+    resizeHeight: size_px,
+    resizeQuality: "high",
+  });
 }
 
 /**

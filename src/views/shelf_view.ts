@@ -1,6 +1,5 @@
 import type { SavedAlbum } from "../library/saved_album";
 import { SAVED_ALBUM_SORT_ORDER_LABELS, type SavedAlbumSortOrder } from "../library/saved_album_sort_order";
-import { album_cover_file_url } from "../library/album_cover_cache";
 import { ShelfRenderer } from "../shelf/shelf_renderer";
 
 export interface ShelfViewOptions {
@@ -9,6 +8,8 @@ export interface ShelfViewOptions {
   on_refresh_library: () => void;
   on_open_settings: () => void;
   on_album_click: (saved_album: SavedAlbum) => void;
+  /** Cached Spotify covers, or generated covers in demo mode. */
+  load_cover_bitmap: (saved_album: SavedAlbum, size_px: number) => Promise<ImageBitmap | null>;
 }
 
 /** An inline message stays on the shelf this long. */
@@ -69,7 +70,7 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
   const frame_durations_ms: number[] = [];
   const shelf_renderer = await ShelfRenderer.create({
     host_element: container.querySelector(".shelf_view_canvas_host")!,
-    cover_url_for_album: album_cover_file_url,
+    load_cover_bitmap: options.load_cover_bitmap,
     on_album_click: options.on_album_click,
     on_frame: STRESS_TEST_ALBUM_COUNT ? (frame_duration_ms) => frame_durations_ms.push(frame_duration_ms) : undefined,
   });
