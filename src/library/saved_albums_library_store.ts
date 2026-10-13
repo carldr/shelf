@@ -9,8 +9,9 @@ const SAVED_ALBUMS_LIBRARY_MAXIMUM_AGE_MS = 6 * 60 * 60 * 1000;
 /**
  * Raise this when SavedAlbum or the cover cache changes, so that an older albums.json is synced again.
  * 2: covers are 640 px and cached files are named after the image ID.
+ * 3: covers are downloaded at 2000 px where the CDN has that size.
  */
-const SAVED_ALBUMS_LIBRARY_FORMAT_VERSION = 2;
+const SAVED_ALBUMS_LIBRARY_FORMAT_VERSION = 3;
 
 /** The contents of albums.json in the app data directory. */
 export interface SavedAlbumsLibrary {
