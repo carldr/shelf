@@ -12,6 +12,9 @@ albums.json
 covers/
 app_settings.json
 
+# Your own bundle identifier and signing settings. Copy tauri.local.conf.example.json to start.
+src-tauri/tauri.local.conf.json
+
 .DS_Store
 *.log
 

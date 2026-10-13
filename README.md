@@ -50,6 +50,13 @@ Install the tools, if you do not have them:
 3. Install Node.js 22.12 or later from [nodejs.org](https://nodejs.org), or with `brew install node`.
 4. Turn on pnpm, which ships with Node.js: `corepack enable pnpm`.
 
+Set your own bundle identifier. The repository uses `com.example.shelf`; your copy keeps its own in a file that git ignores:
+
+1. Copy `src-tauri/tauri.local.conf.example.json` to `src-tauri/tauri.local.conf.json`.
+2. Change `identifier` to a reverse domain name you own, such as `com.yourname.shelf`.
+
+`pnpm tauri dev` and `pnpm tauri build` merge that file over `src-tauri/tauri.conf.json`.
+
 Then install the project's packages and start Shelf:
 
 ```sh
@@ -92,7 +99,7 @@ When the shelf opens, the album Spotify is playing is in the middle, and a green
 5. **Playing.** A click sends `PUT /me/player/play` with the album. Shelf picks the active Spotify device, or else the Spotify app on this Mac. If neither is available, Shelf opens the album in Spotify, waits for this Mac to appear as a device, and then plays.
 6. **Now playing.** While the shelf is open, Shelf reads `GET /me/player` every 5 seconds. It stops when the shelf closes.
 
-Shelf keeps its data in `~/Library/Application Support/com.example.shelf/`:
+Shelf keeps its data in `~/Library/Application Support/<bundle identifier>/`:
 
 | File | Contents |
 |---|---|
@@ -100,7 +107,7 @@ Shelf keeps its data in `~/Library/Application Support/com.example.shelf/`:
 | `albums.json` | The synced library. |
 | `covers/` | The cached covers and their thumbnails. |
 
-The Keychain item has the service `com.example.shelf` and the account `spotify_refresh_token`.
+The Keychain item has the bundle identifier as its service, and the account `spotify_refresh_token`.
 To sign out, click **Disconnect** in Settings; Shelf then deletes the Keychain item.
 
 ## Project layout
@@ -138,6 +145,9 @@ src-tauri/src/                         Rust
   oauth_loopback_callback_server.rs    Receives the sign-in redirect
   spotify_refresh_token_keychain.rs    Keychain storage of the refresh token
   album_cover_thumbnail_and_colour.rs  Cover thumbnails and spine colours
+src-tauri/tauri.conf.json              App and window configuration
+src-tauri/tauri.local.conf.example.json  Template for your own bundle identifier
+scripts/run_tauri_with_local_config.mjs  Adds your local config to pnpm tauri dev and build
 ```
 
 ## Licence
