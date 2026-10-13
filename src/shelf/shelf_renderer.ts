@@ -388,7 +388,6 @@ export class ShelfRenderer {
   }
 
   private lay_out_frame(frame_duration_ms: number): void {
-    this.cover_texture_cache.begin_frame();
     const album_count = this.saved_albums.length;
     if (album_count === 0) {
       return;
