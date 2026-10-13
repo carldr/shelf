@@ -1,0 +1,9 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissions for the shelf window",
+  "windows": ["shelf"],
+  "permissions": [
+    "core:default"
+  ]
+}
