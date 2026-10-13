@@ -5,7 +5,12 @@ import { hostname } from "@tauri-apps/plugin-os";
 import { load_app_settings, save_app_settings, type AppSettings } from "./app_settings_store";
 import { draw_demo_album_cover_bitmap } from "./demo/demo_album_cover";
 import { generate_demo_saved_albums } from "./demo/demo_saved_albums";
-import { load_cached_album_cover_bitmap, resolve_album_covers_directory_path } from "./library/album_cover_cache";
+import {
+  ALBUM_COVER_THUMBNAIL_SIZE_PX,
+  load_cached_album_cover_bitmap,
+  load_cached_album_cover_thumbnail_bitmap,
+  resolve_album_covers_directory_path,
+} from "./library/album_cover_cache";
 import type { SavedAlbum } from "./library/saved_album";
 import { sort_saved_albums } from "./library/saved_album_sort_order";
 import {
@@ -208,6 +213,10 @@ async function show_library_view(): Promise<void> {
       app_settings.demo_mode_enabled
         ? draw_demo_album_cover_bitmap(saved_album, size_px)
         : load_cached_album_cover_bitmap(saved_album, size_px),
+    load_cover_thumbnail_bitmap: (saved_album) =>
+      app_settings.demo_mode_enabled
+        ? draw_demo_album_cover_bitmap(saved_album, ALBUM_COVER_THUMBNAIL_SIZE_PX)
+        : load_cached_album_cover_thumbnail_bitmap(saved_album),
   });
   shelf_view.resume();
   show_sorted_albums();

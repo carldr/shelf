@@ -10,6 +10,8 @@ export interface ShelfViewOptions {
   on_album_click: (saved_album: SavedAlbum) => void;
   /** Cached Spotify covers, or generated covers in demo mode. */
   load_cover_bitmap: (saved_album: SavedAlbum, size_px: number) => Promise<ImageBitmap | null>;
+  /** Cached Spotify cover thumbnails, or generated ones in demo mode. */
+  load_cover_thumbnail_bitmap: (saved_album: SavedAlbum) => Promise<ImageBitmap | null>;
 }
 
 /** An inline message stays on the shelf this long. */
@@ -84,6 +86,7 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
           return options.load_cover_bitmap(saved_album, size_px);
         }
       : options.load_cover_bitmap,
+    load_cover_thumbnail_bitmap: options.load_cover_thumbnail_bitmap,
     on_album_click: options.on_album_click,
     on_frame: STRESS_TEST_ALBUM_COUNT ? (shelf_frame_timing) => shelf_frame_timings.push(shelf_frame_timing) : undefined,
     stress_test_switches: STRESS_TEST_SWITCHES,

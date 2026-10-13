@@ -29,6 +29,11 @@ export class ShelfCoverTextureCache {
     this.destroy();
   }
 
+  /** Returns the texture if loaded, without starting a load. */
+  get_loaded(cover_key: string): Texture | null {
+    return this.cover_textures_by_key.get(cover_key) ?? null;
+  }
+
   /** Returns the texture if loaded; otherwise starts `load_cover_bitmap` and returns null. */
   get_or_start_loading(cover_key: string, load_cover_bitmap: ShelfCoverBitmapLoader): Texture | null {
     const cover_texture = this.cover_textures_by_key.get(cover_key);

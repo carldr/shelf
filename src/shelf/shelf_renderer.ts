@@ -11,6 +11,7 @@ import {
 } from "pixi.js";
 import type { SavedAlbum } from "../library/saved_album";
 import { ShelfCoverTextureCache } from "./shelf_cover_texture_cache";
+import { ShelfCoverThumbnailTextures } from "./shelf_cover_thumbnail_textures";
 import {
   compute_album_rect_x,
   compute_scroll_x_centring_album,
@@ -56,13 +57,21 @@ const CLOSED_OPEN_AMOUNT_THRESHOLD = 0.002;
 const WHEEL_SNAP_DELAY_MS = 120;
 /** Lines from a mouse wheel in line mode become this many pixels. */
 const WHEEL_LINE_HEIGHT_PX = 16;
+/**
+ * An album must stay in the middle this long before its full cover loads. During a flick
+ * albums pass the middle faster than this, so only their thumbnails show.
+ */
+const FULL_COVER_LOAD_DELAY_MS = 100;
+const FULL_COVER_FADE_TIME_CONSTANT_MS = 60;
 /** A closed cover is drawn this bright, so that a turning case looks lit from the front. */
 const TURNING_COVER_MINIMUM_BRIGHTNESS = 0.55;
 
 export interface ShelfRendererOptions {
   host_element: HTMLElement;
-  /** Produces the album's cover at `size_px` square, or null when it has none. */
+  /** Produces the album's full cover at `size_px` square, or null when it has none. */
   load_cover_bitmap: (saved_album: SavedAlbum, size_px: number) => Promise<ImageBitmap | null>;
+  /** Produces the album's cover thumbnail, or null when it has none. */
+  load_cover_thumbnail_bitmap: (saved_album: SavedAlbum) => Promise<ImageBitmap | null>;
   on_album_click: (saved_album: SavedAlbum) => void;
   /** Receives the duration of each frame, for the performance overlay. */
   on_frame?: (shelf_frame_timing: ShelfFrameTiming) => void;
@@ -87,7 +96,8 @@ interface SpineLabelTexts {
 /**
  * The Pixi objects of one visible album. They are pooled and reused as albums scroll in and out.
  * From back to front: the dark case, the coloured paper insert, the label printed on it,
- * the clear plastic of the case, and the cover that turns into view as the album opens.
+ * the clear plastic of the case, the cover thumbnail that turns into view as the album opens,
+ * and the full cover that fades in over the thumbnail once loaded.
  */
 class ShelfAlbumDisplay {
   readonly container = new Container();
@@ -98,7 +108,10 @@ class ShelfAlbumDisplay {
   readonly album_name_text: BitmapText;
   readonly jewel_case_overlay: Sprite;
   readonly cover_face = new Sprite(Texture.WHITE);
+  readonly full_cover_face = new Sprite(Texture.WHITE);
   spine_colour = 0x808080;
+  /** 0 shows only the thumbnail, 1 only the full cover. */
+  full_cover_opacity = 0;
 
   constructor(
     jewel_case_overlay_texture: Texture,
@@ -123,10 +136,12 @@ class ShelfAlbumDisplay {
       this.spine_label,
       this.jewel_case_overlay,
       this.cover_face,
+      this.full_cover_face,
     );
   }
 
   show_album(saved_album: SavedAlbum, spine_label_texts: SpineLabelTexts): void {
+    this.full_cover_opacity = 0;
     this.spine_colour = saved_album.cover_dominant_colour ? parse_hex_colour(saved_album.cover_dominant_colour) : 0x808080;
     this.spine_insert.tint = this.spine_colour;
     const label_colour = choose_spine_label_colour(this.spine_colour);
@@ -158,6 +173,11 @@ export class ShelfRenderer {
   private now_playing_album_index = -1;
   private album_indexes_by_spotify_album_id = new Map<string, number>();
   private readonly cover_texture_cache = new ShelfCoverTextureCache();
+  private readonly cover_thumbnail_textures: ShelfCoverThumbnailTextures;
+  private saved_albums_by_spotify_album_id = new Map<string, SavedAlbum>();
+  /** When the album in the middle became the one in the middle, for the full-cover delay. */
+  private focused_since_ms = 0;
+  private current_frame_duration_ms = 16;
   private readonly displays_by_album_index = new Map<number, ShelfAlbumDisplay>();
   private readonly unused_displays: ShelfAlbumDisplay[] = [];
   private readonly open_amounts_by_album_index = new Map<number, number>();
@@ -177,7 +197,12 @@ export class ShelfRenderer {
   private drawn_album_index_range = { first_album_index: 0, last_album_index: -1 };
   private readonly label_measuring_context = document.createElement("canvas").getContext("2d")!;
 
-  private constructor(private readonly options: ShelfRendererOptions) {}
+  private constructor(private readonly options: ShelfRendererOptions) {
+    this.cover_thumbnail_textures = new ShelfCoverThumbnailTextures(async (spotify_album_id) => {
+      const saved_album = this.saved_albums_by_spotify_album_id.get(spotify_album_id);
+      return saved_album ? this.options.load_cover_thumbnail_bitmap(saved_album) : null;
+    });
+  }
 
   static async create(options: ShelfRendererOptions): Promise<ShelfRenderer> {
     const shelf_renderer = new ShelfRenderer(options);
@@ -226,6 +251,10 @@ export class ShelfRenderer {
     this.album_indexes_by_spotify_album_id = new Map(
       saved_albums.map((saved_album, album_index) => [saved_album.spotify_album_id, album_index]),
     );
+    this.saved_albums_by_spotify_album_id = new Map(
+      saved_albums.map((saved_album) => [saved_album.spotify_album_id, saved_album]),
+    );
+    this.cover_thumbnail_textures.load_thumbnails(saved_albums.map((saved_album) => saved_album.spotify_album_id));
     this.set_now_playing_album(now_playing_spotify_album_id);
     this.spine_label_texts_by_album_index = [];
     this.open_amounts_by_album_index.clear();
@@ -282,6 +311,7 @@ export class ShelfRenderer {
 
   destroy(): void {
     this.cover_texture_cache.destroy();
+    this.cover_thumbnail_textures.destroy();
     this.application.destroy(true, { children: true });
   }
 
@@ -388,6 +418,7 @@ export class ShelfRenderer {
   }
 
   private lay_out_frame(frame_duration_ms: number): void {
+    this.current_frame_duration_ms = frame_duration_ms;
     const album_count = this.saved_albums.length;
     if (album_count === 0) {
       return;
@@ -398,11 +429,15 @@ export class ShelfRenderer {
       this.scroll_x = this.scroll_target_x;
     }
 
-    this.focused_album_index = find_closed_album_index_at(
+    const focused_album_index = find_closed_album_index_at(
       this.scroll_x + view_width / 2,
       album_count,
       this.shelf_geometry,
     );
+    if (focused_album_index !== this.focused_album_index) {
+      this.focused_album_index = focused_album_index;
+      this.focused_since_ms = performance.now();
+    }
     const opening_albums = this.update_open_amounts(frame_duration_ms);
 
     // Opening albums push neighbours at most half a cover each way, so a margin of one cover covers them.
@@ -490,21 +525,54 @@ export class ShelfRenderer {
     display.spine_label.x = drawn_spine_width / 2 + (display.artist_text.height / 2) * (1 - open_amount);
     display.spine_label.y = this.spine_label_start_y();
 
-    display.cover_face.visible = open_amount > CLOSED_OPEN_AMOUNT_THRESHOLD;
-    if (display.cover_face.visible) {
-      const saved_album = this.saved_albums[album_index];
-      const cover_texture = this.options.stress_test_switches?.without_covers
-        ? null
-        : this.cover_texture_cache.get_or_start_loading(saved_album.spotify_album_id, (size_px) =>
-            this.options.load_cover_bitmap(saved_album, size_px),
-          );
-      display.cover_face.texture = cover_texture ?? Texture.WHITE;
-      display.cover_face.x = drawn_spine_width;
-      display.cover_face.width = drawn_cover_width;
-      display.cover_face.height = cover_size;
-      const brightness = TURNING_COVER_MINIMUM_BRIGHTNESS + (1 - TURNING_COVER_MINIMUM_BRIGHTNESS) * open_amount;
-      display.cover_face.tint = cover_texture ? scale_colour_brightness(0xffffff, brightness) : display.spine_colour;
+    const cover_is_visible = open_amount > CLOSED_OPEN_AMOUNT_THRESHOLD;
+    display.cover_face.visible = cover_is_visible;
+    display.full_cover_face.visible = false;
+    if (!cover_is_visible) {
+      display.full_cover_opacity = 0;
+      return;
     }
+    const saved_album = this.saved_albums[album_index];
+    const covers_enabled = !this.options.stress_test_switches?.without_covers;
+    const brightness = TURNING_COVER_MINIMUM_BRIGHTNESS + (1 - TURNING_COVER_MINIMUM_BRIGHTNESS) * open_amount;
+    const lit_tint = scale_colour_brightness(0xffffff, brightness);
+
+    // The thumbnail shows from the first frame; without one, the face takes the spine colour.
+    const thumbnail_texture = covers_enabled
+      ? this.cover_thumbnail_textures.get_thumbnail_texture(saved_album.spotify_album_id)
+      : null;
+    for (const cover_sprite of [display.cover_face, display.full_cover_face]) {
+      cover_sprite.x = drawn_spine_width;
+      cover_sprite.width = drawn_cover_width;
+      cover_sprite.height = cover_size;
+    }
+    display.cover_face.texture = thumbnail_texture ?? Texture.WHITE;
+    display.cover_face.tint = thumbnail_texture ? lit_tint : display.spine_colour;
+
+    // The full cover loads only once the album has stayed in the middle, then fades in.
+    const album_has_settled_in_middle =
+      album_index === this.focused_album_index && performance.now() - this.focused_since_ms >= FULL_COVER_LOAD_DELAY_MS;
+    const full_cover_texture = !covers_enabled
+      ? null
+      : album_has_settled_in_middle
+        ? this.cover_texture_cache.get_or_start_loading(saved_album.spotify_album_id, (size_px) =>
+            this.options.load_cover_bitmap(saved_album, size_px),
+          )
+        : this.cover_texture_cache.get_loaded(saved_album.spotify_album_id);
+    if (!full_cover_texture) {
+      display.full_cover_opacity = 0;
+      return;
+    }
+    display.full_cover_opacity = ease_toward(
+      display.full_cover_opacity,
+      1,
+      this.current_frame_duration_ms,
+      FULL_COVER_FADE_TIME_CONSTANT_MS,
+    );
+    display.full_cover_face.visible = true;
+    display.full_cover_face.texture = full_cover_texture;
+    display.full_cover_face.tint = lit_tint;
+    display.full_cover_face.alpha = display.full_cover_opacity;
   }
 
   private acquire_display(album_index: number): ShelfAlbumDisplay {
