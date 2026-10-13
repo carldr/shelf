@@ -1,4 +1,4 @@
-import { Application, BitmapFont, BitmapText, Container, Graphics, Sprite, Texture } from "pixi.js";
+import { Application, BitmapFont, BitmapText, Cache, Container, Graphics, Sprite, Texture } from "pixi.js";
 import type { SavedAlbum } from "../library/saved_album";
 import { ShelfCoverTextureCache } from "./shelf_cover_texture_cache";
 import {
@@ -507,7 +507,10 @@ function install_spine_label_fonts(font_size: number): void {
     [SPINE_LABEL_ARTIST_FONT_NAME, "700"],
     [SPINE_LABEL_ALBUM_NAME_FONT_NAME, "400"],
   ] as const) {
-    BitmapFont.uninstall(font_name);
+    // Pixi stores installed fonts under "<name>-bitmap"; uninstalling a missing one logs a warning.
+    if (Cache.has(`${font_name}-bitmap`)) {
+      BitmapFont.uninstall(font_name);
+    }
     // White glyphs, tinted per spine. Missing characters, such as Japanese titles, are added on first use.
     BitmapFont.install({
       name: font_name,
