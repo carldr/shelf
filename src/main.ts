@@ -12,10 +12,11 @@ import { sync_saved_albums_library } from "./library/saved_albums_sync";
 import { SpotifyAccessTokenSession } from "./spotify/spotify_access_token_session";
 import { authorize_spotify_with_pkce, SpotifyRefreshTokenRejectedError } from "./spotify/spotify_pkce_auth";
 import { SpotifyWebApiClient } from "./spotify/spotify_web_api_client";
+import { create_shelf_view, type ShelfView } from "./views/shelf_view";
 import { render_spotify_connection_view } from "./views/spotify_connection_view";
-import { render_temporary_cover_grid_view, type TemporaryCoverGridView } from "./views/temporary_cover_grid_view";
 
-const app_root = document.getElementById("app_root")!;
+const shelf_view_root = document.getElementById("shelf_view_root")!;
+const spotify_connection_view_root = document.getElementById("spotify_connection_view_root")!;
 
 interface ConnectedSpotifyAccount {
   access_token_session: SpotifyAccessTokenSession;
@@ -26,7 +27,7 @@ interface ConnectedSpotifyAccount {
 let app_settings: AppSettings;
 let connected_spotify_account: ConnectedSpotifyAccount | null = null;
 let saved_albums_library: SavedAlbumsLibrary | null = null;
-let temporary_cover_grid_view: TemporaryCoverGridView | null = null;
+let shelf_view: ShelfView | null = null;
 let library_sync_in_progress = false;
 
 document.addEventListener("keydown", (keyboard_event) => {
@@ -37,6 +38,8 @@ document.addEventListener("keydown", (keyboard_event) => {
 
 void listen("tray_menu_open_settings", () => show_spotify_connection_view(null));
 void listen("tray_menu_refresh_library", () => void sync_library());
+void listen("shelf_window_shown", () => shelf_view?.resume());
+void listen("shelf_window_hidden", () => shelf_view?.pause());
 
 async function start_shelf(): Promise<void> {
   app_settings = await load_app_settings();
@@ -60,7 +63,7 @@ async function start_shelf(): Promise<void> {
     return;
   }
   saved_albums_library = await load_saved_albums_library();
-  show_library_view();
+  await show_library_view();
   if (is_saved_albums_library_stale(saved_albums_library)) {
     await sync_library();
   }
@@ -79,8 +82,10 @@ async function connect_spotify_account(
 }
 
 function show_spotify_connection_view(status_message: string | null): void {
-  temporary_cover_grid_view = null;
-  render_spotify_connection_view(app_root, {
+  shelf_view_root.hidden = true;
+  shelf_view?.pause();
+  spotify_connection_view_root.hidden = false;
+  render_spotify_connection_view(spotify_connection_view_root, {
     spotify_client_id: app_settings.spotify_client_id,
     connected_spotify_display_name: connected_spotify_account?.spotify_display_name ?? null,
     status_message,
@@ -95,7 +100,7 @@ function show_spotify_connection_view(status_message: string | null): void {
       );
       connected_spotify_account = await connect_spotify_account(access_token_session);
       // The new login can be a different Spotify account, so the stored library is not trusted.
-      show_library_view();
+      await show_library_view();
       await sync_library();
     },
     on_disconnect: async () => {
@@ -103,27 +108,37 @@ function show_spotify_connection_view(status_message: string | null): void {
       connected_spotify_account = null;
       show_spotify_connection_view(null);
     },
-    on_done: connected_spotify_account ? show_library_view : null,
+    on_done: connected_spotify_account ? () => void show_library_view() : null,
   });
 }
 
-function show_library_view(): void {
-  temporary_cover_grid_view = render_temporary_cover_grid_view(app_root, {
-    sorted_saved_albums: sort_saved_albums(saved_albums_library?.saved_albums ?? [], app_settings.saved_album_sort_order),
+async function show_library_view(): Promise<void> {
+  spotify_connection_view_root.hidden = true;
+  shelf_view_root.hidden = false;
+  shelf_view ??= await create_shelf_view(shelf_view_root, {
     saved_album_sort_order: app_settings.saved_album_sort_order,
     on_sort_order_change: (saved_album_sort_order) => {
       app_settings = { ...app_settings, saved_album_sort_order };
       void save_app_settings(app_settings);
-      show_library_view();
+      show_sorted_albums();
     },
     on_refresh_library: () => void sync_library(),
     on_open_settings: () => show_spotify_connection_view(null),
+    on_album_click: (saved_album) => console.info("Shelf album clicked", saved_album.spotify_album_uri),
   });
+  shelf_view.resume();
+  show_sorted_albums();
   if (library_sync_in_progress) {
-    temporary_cover_grid_view.show_sync_status("Syncing…");
+    shelf_view.show_sync_status("Syncing…");
   } else if (saved_albums_library) {
-    temporary_cover_grid_view.show_sync_status(`Synced ${new Date(saved_albums_library.synced_at).toLocaleString()}`);
+    shelf_view.show_sync_status(`Synced ${new Date(saved_albums_library.synced_at).toLocaleString()}`);
   }
+}
+
+function show_sorted_albums(): void {
+  shelf_view?.show_albums(
+    sort_saved_albums(saved_albums_library?.saved_albums ?? [], app_settings.saved_album_sort_order),
+  );
 }
 
 async function sync_library(): Promise<void> {
@@ -131,27 +146,26 @@ async function sync_library(): Promise<void> {
     return;
   }
   library_sync_in_progress = true;
-  temporary_cover_grid_view?.show_sync_status("Syncing…");
+  shelf_view?.show_sync_status("Syncing…");
   try {
     saved_albums_library = await sync_saved_albums_library(
       connected_spotify_account.spotify_web_api_client,
       saved_albums_library,
       (sync_progress) =>
-        temporary_cover_grid_view?.show_sync_status(
+        shelf_view?.show_sync_status(
           sync_progress.sync_stage === "fetching_albums"
             ? `Fetching albums ${sync_progress.completed_count} of ${sync_progress.total_count}`
             : `Caching covers ${sync_progress.completed_count} of ${sync_progress.total_count}`,
         ),
     );
-    library_sync_in_progress = false;
-    if (temporary_cover_grid_view) {
-      show_library_view();
-    }
+    show_sorted_albums();
+    shelf_view?.show_sync_status(`Synced ${new Date(saved_albums_library.synced_at).toLocaleString()}`);
   } catch (sync_error) {
-    library_sync_in_progress = false;
-    temporary_cover_grid_view?.show_sync_status(
+    shelf_view?.show_sync_status(
       `Sync failed: ${sync_error instanceof Error ? sync_error.message : String(sync_error)}`,
     );
+  } finally {
+    library_sync_in_progress = false;
   }
 }
 
