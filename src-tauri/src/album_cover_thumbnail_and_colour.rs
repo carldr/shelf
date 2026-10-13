@@ -3,8 +3,6 @@
 //! The cached covers are up to 2000 px. Decoding them here, on blocking threads, keeps the
 //! work off the webview and lets several covers decode at once during a sync.
 
-use std::fs::File;
-use std::io::BufWriter;
 use std::path::{Component, Path, PathBuf};
 
 use image::codecs::jpeg::JpegEncoder;
@@ -76,10 +74,15 @@ fn write_thumbnail_and_sample_colour(
 
     let thumbnail_image =
         image::imageops::resize(&cover_image, thumbnail_size_px, thumbnail_size_px, FilterType::CatmullRom);
-    let thumbnail_file = File::create(&thumbnail_file_path).map_err(|error| error.to_string())?;
-    JpegEncoder::new_with_quality(BufWriter::new(thumbnail_file), ALBUM_COVER_THUMBNAIL_JPEG_QUALITY)
+    let mut thumbnail_jpeg_bytes = Vec::new();
+    JpegEncoder::new_with_quality(&mut thumbnail_jpeg_bytes, ALBUM_COVER_THUMBNAIL_JPEG_QUALITY)
         .encode_image(&thumbnail_image)
         .map_err(|error| error.to_string())?;
+    // The thumbnail appears under its final name only through the rename, so quitting mid-write
+    // leaves a ".partial" file, which the next sync deletes as unused.
+    let partial_thumbnail_file_path = thumbnail_file_path.with_extension("jpg.partial");
+    std::fs::write(&partial_thumbnail_file_path, &thumbnail_jpeg_bytes).map_err(|error| error.to_string())?;
+    std::fs::rename(&partial_thumbnail_file_path, &thumbnail_file_path).map_err(|error| error.to_string())?;
 
     let colour_sample_image = image::imageops::resize(
         &thumbnail_image,

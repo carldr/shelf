@@ -1,6 +1,6 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { appDataDir, join } from "@tauri-apps/api/path";
-import { BaseDirectory, exists, mkdir, readDir, remove, writeFile } from "@tauri-apps/plugin-fs";
+import { BaseDirectory, exists, mkdir, readDir, remove, rename, writeFile } from "@tauri-apps/plugin-fs";
 import type { SavedAlbum } from "./saved_album";
 
 const ALBUM_COVERS_DIRECTORY_NAME = "covers";
@@ -133,7 +133,14 @@ async function cache_album_cover(saved_album: SavedAlbum): Promise<SavedAlbum> {
 
   if (!cover_is_cached) {
     const cover_image_bytes = await download_largest_cover_image(saved_album.cover_image_url);
-    await writeFile(cover_relative_path, cover_image_bytes, { baseDir: BaseDirectory.AppData });
+    // A complete file appears under its final name only through the rename, so quitting
+    // mid-write leaves a ".partial" file, which the next sync deletes as unused.
+    const partial_cover_relative_path = `${cover_relative_path}.partial`;
+    await writeFile(partial_cover_relative_path, cover_image_bytes, { baseDir: BaseDirectory.AppData });
+    await rename(partial_cover_relative_path, cover_relative_path, {
+      oldPathBaseDir: BaseDirectory.AppData,
+      newPathBaseDir: BaseDirectory.AppData,
+    });
   }
   // album_cover_thumbnail_and_colour.rs decodes the cover once, off the webview, for both.
   const cover_dominant_colour = await invoke<string>("write_album_cover_thumbnail_and_sample_colour", {
