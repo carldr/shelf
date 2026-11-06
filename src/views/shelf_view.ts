@@ -120,8 +120,6 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
   put_cd_away_button.addEventListener("click", () => shelf_renderer.close_centre_album());
 
   if (STRESS_TEST_ALBUM_COUNT) {
-    // The sweep measures the shelf with an album opening in the middle, as a user sees it while scrolling.
-    shelf_renderer.open_centre_album();
     run_stress_test_sweep(
       shelf_renderer,
       shelf_frame_timings,
@@ -143,6 +141,10 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
         : sorted_saved_albums;
       album_count_element.textContent = `${shown_albums.length} albums`;
       shelf_renderer.set_albums(shown_albums);
+      if (STRESS_TEST_ALBUM_COUNT) {
+        // The sweep measures the shelf with an album opening in the middle, as a user sees it while scrolling.
+        shelf_renderer.open_centre_album();
+      }
     },
     show_message(message_text) {
       message_element.textContent = message_text;
