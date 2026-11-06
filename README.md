@@ -86,7 +86,7 @@ Shelf appears as an icon in the menu bar, not in the Dock.
 |---|---|
 | Click the tray icon | Opens or closes the shelf. |
 | Scroll or swipe sideways | Moves along the shelf. It settles with one album in the middle. While an album is open, the album in the middle opens. |
-| Click a spine | Brings that album to the middle and opens it. |
+| Click a spine, or scroll down over it | Brings that album to the middle and opens it. |
 | Click the open album | Plays it in Spotify. |
 | Put CD away | Closes the open album, so the shelf shows only spines. |
 | Click ↻ on the open album, or scroll down over it | Turns the album round to show its track list. |

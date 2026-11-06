@@ -3,6 +3,7 @@ import type { SavedAlbum } from "../library/saved_album";
 import { SAVED_ALBUM_SORT_ORDER_LABELS, type SavedAlbumSortOrder } from "../library/saved_album_sort_order";
 import { ShelfAlbumSpinLayer } from "../shelf/shelf_album_spin_layer";
 import { ShelfRenderer, type ShelfFrameTiming } from "../shelf/shelf_renderer";
+import { VerticalScrollGestureGate } from "../shelf/vertical_scroll_gesture_gate";
 
 export interface ShelfViewOptions {
   saved_album_sort_order: SavedAlbumSortOrder;
@@ -117,12 +118,35 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
   let window_shown = true;
 
   const canvas_host_element = container.querySelector<HTMLElement>(".shelf_view_canvas_host")!;
+  const vertical_scroll_gesture_gate = new VerticalScrollGestureGate();
+  /**
+   * A scroll down over the open cover turns it to its back, and a scroll up puts it away.
+   * A scroll down over a spine opens that album, as a click does. Each swipe acts once.
+   */
+  const handle_vertical_scroll_over_album = (delta_y: number, saved_album: SavedAlbum, album_is_open: boolean) => {
+    if (!vertical_scroll_gesture_gate.may_act(delta_y)) {
+      return;
+    }
+    if (album_is_open && delta_y > 0 && album_spin_layer.can_turn_to_back()) {
+      vertical_scroll_gesture_gate.mark_acted();
+      void album_spin_layer.turn_to_back();
+    } else if (album_is_open && delta_y < 0) {
+      vertical_scroll_gesture_gate.mark_acted();
+      album_spin_layer.put_album_back_at_once();
+      shelf_renderer.close_centre_album();
+    } else if (!album_is_open && delta_y > 0) {
+      vertical_scroll_gesture_gate.mark_acted();
+      shelf_renderer.open_album(saved_album.spotify_album_id);
+    }
+  };
   const album_spin_layer = new ShelfAlbumSpinLayer({
     host_element: canvas_host_element,
     load_cover_bitmap: options.load_cover_bitmap,
     load_album_tracks: options.load_album_tracks,
     on_track_click: options.on_track_click,
-    on_put_album_away: () => shelf_renderer.close_centre_album(),
+    on_vertical_scroll_over_spin_button: (delta_y, saved_album) =>
+      handle_vertical_scroll_over_album(delta_y, saved_album, true),
+    vertical_scroll_gesture_gate,
     // While the album turns or shows its back, the layer draws it and the shelf stays still.
     on_spinning_album_change: (spinning_album) => {
       shelf_renderer.set_hidden_album(spinning_album?.spotify_album_id ?? null);
@@ -146,8 +170,7 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
     on_settled_open_album_change: (settled_open_album) => album_spin_layer.set_settled_open_album(settled_open_album),
     // A click or sideways scroll on the shelf puts a turned album back at once, and then goes ahead as usual.
     on_shelf_input_while_locked: () => album_spin_layer.put_album_back_at_once(),
-    // Scrolling down over the open cover turns it to its back; scrolling up puts it away.
-    on_vertical_scroll_over_open_album: (delta_y) => album_spin_layer.handle_vertical_scroll_over_cover(delta_y),
+    on_vertical_scroll_over_album: handle_vertical_scroll_over_album,
     on_frame: STRESS_TEST_ALBUM_COUNT ? (shelf_frame_timing) => shelf_frame_timings.push(shelf_frame_timing) : undefined,
     stress_test_switches: STRESS_TEST_SWITCHES,
   });

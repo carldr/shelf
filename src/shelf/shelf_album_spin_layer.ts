@@ -3,6 +3,7 @@ import type { SavedAlbum } from "../library/saved_album";
 import { compute_album_back_track_row_layout } from "./album_back_track_list_layout";
 import { JEWEL_CASE_BACK_COLOUR, JEWEL_CASE_CAP_HEIGHT_RATIO, type SettledOpenAlbum } from "./shelf_renderer";
 import { choose_spine_label_colour, parse_hex_colour } from "./shelf_spine_label";
+import type { VerticalScrollGestureGate } from "./vertical_scroll_gesture_gate";
 
 /** The turn from the cover to the back, and from the back to the cover, takes this long. */
 const ALBUM_SPIN_DURATION_MS = 400;
@@ -18,10 +19,6 @@ const ALBUM_NAME_REST_AT_START_MS = 3_000;
 const ALBUM_NAME_FIRST_SCROLL_DELAY_MS = 1_000;
 /** The album name rests at its end this long before it scrolls back. */
 const ALBUM_NAME_REST_AT_END_MS = 1_000;
-/** Scroll events less than this apart belong to one swipe or wheel turn, which turns or puts away the album once. */
-const VERTICAL_SCROLL_GESTURE_GAP_MS = 300;
-/** A vertical scroll smaller than this, such as a resting finger on a trackpad, does not turn the album. */
-const VERTICAL_SCROLL_MINIMUM_DELTA = 3;
 /** An end of the album name with text hidden past it fades out over this width. */
 const ALBUM_NAME_FADE_WIDTH = "1.25em";
 
@@ -36,8 +33,10 @@ export interface ShelfAlbumSpinLayerOptions {
    * In between, this layer draws the album, and the shelf must not move.
    */
   on_spinning_album_change: (spinning_album: SavedAlbum | null) => void;
-  /** Puts the open album away, for a scroll up over its cover. */
-  on_put_album_away: () => void;
+  /** Receives a vertical scroll over the spin button, which sits on the open cover. */
+  on_vertical_scroll_over_spin_button: (delta_y: number, saved_album: SavedAlbum) => void;
+  /** Shared with the shelf, so that one swipe acts once across the cover and its back. */
+  vertical_scroll_gesture_gate: VerticalScrollGestureGate;
 }
 
 type AlbumSpinState = "showing_cover" | "turning_to_back" | "showing_back" | "turning_to_cover";
@@ -55,8 +54,6 @@ export class ShelfAlbumSpinLayer {
   private spin_timer: ReturnType<typeof setTimeout> | undefined;
   private now_playing_spotify_track_id: string | null = null;
   private track_rows_by_spotify_track_id = new Map<string, HTMLElement>();
-  private last_vertical_scroll_ms = Number.NEGATIVE_INFINITY;
-  private vertical_scroll_gesture_acted = false;
 
   constructor(private readonly options: ShelfAlbumSpinLayerOptions) {
     this.spin_button.type = "button";
@@ -70,9 +67,9 @@ export class ShelfAlbumSpinLayer {
     this.spin_button.addEventListener(
       "wheel",
       (wheel_event) => {
-        if (Math.abs(wheel_event.deltaY) > Math.abs(wheel_event.deltaX)) {
+        if (Math.abs(wheel_event.deltaY) > Math.abs(wheel_event.deltaX) && this.settled_open_album) {
           wheel_event.preventDefault();
-          this.handle_vertical_scroll_over_cover(wheel_event.deltaY);
+          this.options.on_vertical_scroll_over_spin_button(wheel_event.deltaY, this.settled_open_album.saved_album);
         }
       },
       { passive: false },
@@ -109,33 +106,9 @@ export class ShelfAlbumSpinLayer {
     }
   }
 
-  /** A vertical scroll over the open cover: down turns the album to its back, up puts it away. */
-  handle_vertical_scroll_over_cover(delta_y: number): void {
-    if (!this.take_vertical_scroll_gesture(delta_y)) {
-      return;
-    }
-    if (delta_y > 0) {
-      void this.turn_to_back();
-    } else {
-      this.options.on_put_album_away();
-    }
-  }
-
-  /**
-   * Notes a vertical scroll event, and returns true if it may act: it is large enough, and no earlier event
-   * of the same swipe or wheel turn has acted. Every event extends the swipe, so trackpad momentum does not act again.
-   */
-  private take_vertical_scroll_gesture(delta_y: number): boolean {
-    const now_ms = performance.now();
-    if (now_ms - this.last_vertical_scroll_ms >= VERTICAL_SCROLL_GESTURE_GAP_MS) {
-      this.vertical_scroll_gesture_acted = false;
-    }
-    this.last_vertical_scroll_ms = now_ms;
-    if (this.vertical_scroll_gesture_acted || Math.abs(delta_y) < VERTICAL_SCROLL_MINIMUM_DELTA) {
-      return false;
-    }
-    this.vertical_scroll_gesture_acted = true;
-    return true;
+  /** Whether the open album has settled and can turn to its back now. */
+  can_turn_to_back(): boolean {
+    return this.settled_open_album !== null && this.spin_stage === null;
   }
 
   /** Turns the album from its back to its cover, then gives it back to the shelf. */
@@ -252,7 +225,9 @@ export class ShelfAlbumSpinLayer {
           return;
         }
         wheel_event.preventDefault();
-        if (wheel_event.deltaY < 0 && this.take_vertical_scroll_gesture(wheel_event.deltaY)) {
+        const vertical_scroll_gesture_gate = this.options.vertical_scroll_gesture_gate;
+        if (vertical_scroll_gesture_gate.may_act(wheel_event.deltaY) && wheel_event.deltaY < 0) {
+          vertical_scroll_gesture_gate.mark_acted();
           this.turn_to_cover();
         }
       },

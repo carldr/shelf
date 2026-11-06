@@ -86,8 +86,11 @@ export interface ShelfRendererOptions {
    * If the callback unlocks the shelf, the click or scroll then goes ahead as usual.
    */
   on_shelf_input_while_locked: () => void;
-  /** Receives each vertical scroll over the open centre album's cover, with its `deltaY`: positive scrolls down. */
-  on_vertical_scroll_over_open_album: (delta_y: number) => void;
+  /**
+   * Receives each vertical scroll over an album, with its `deltaY` (positive scrolls down),
+   * and whether that album is the open centre album or a closed spine.
+   */
+  on_vertical_scroll_over_album: (delta_y: number, saved_album: SavedAlbum, album_is_open: boolean) => void;
   /** Receives the duration of each frame, for the performance overlay. */
   on_frame?: (shelf_frame_timing: ShelfFrameTiming) => void;
   /** Dev-only switches that leave out parts of the drawing, to find what limits the frame rate. */
@@ -324,6 +327,20 @@ export class ShelfRenderer {
     return true;
   }
 
+  /** Brings the album to the middle and opens it, as a click on its spine does. */
+  open_album(spotify_album_id: string): void {
+    const album_index = this.album_indexes_by_spotify_album_id.get(spotify_album_id);
+    if (album_index !== undefined) {
+      this.open_album_at_index(album_index);
+    }
+  }
+
+  private open_album_at_index(album_index: number): void {
+    // Opening first widens the scroll range, so that an album near an end can reach the middle.
+    this.set_centre_album_open(true);
+    this.scroll_album_to_centre(album_index);
+  }
+
   /** Opens the album in the middle, and each album that scrolls to the middle after it. */
   open_centre_album(): void {
     this.set_centre_album_open(true);
@@ -463,18 +480,21 @@ export class ShelfRenderer {
         this.options.on_album_click(this.saved_albums[clicked_album_index]);
         return;
       }
-      // Opening first widens the scroll range, so that an album near an end can reach the middle.
-      this.set_centre_album_open(true);
-      this.scroll_album_to_centre(clicked_album_index);
+      this.open_album_at_index(clicked_album_index);
     });
     canvas.addEventListener(
       "wheel",
       (wheel_event) => {
-        // Only sideways scrolling moves the shelf. Vertical scrolling over the open album goes to the view.
+        // Only sideways scrolling moves the shelf. Vertical scrolling over an album goes to the view.
         if (Math.abs(wheel_event.deltaX) <= Math.abs(wheel_event.deltaY)) {
-          if (!this.shelf_input_locked && this.is_over_open_centre_album(wheel_event.offsetX)) {
+          const scrolled_album_index = this.shelf_input_locked ? -1 : this.find_album_index_at_view_x(wheel_event.offsetX);
+          if (scrolled_album_index !== -1) {
             wheel_event.preventDefault();
-            this.options.on_vertical_scroll_over_open_album(wheel_event.deltaY);
+            this.options.on_vertical_scroll_over_album(
+              wheel_event.deltaY,
+              this.saved_albums[scrolled_album_index],
+              this.centre_album_open && scrolled_album_index === this.focused_album_index,
+            );
           }
           return;
         }
@@ -495,17 +515,14 @@ export class ShelfRenderer {
     );
   }
 
-  /** Whether `view_x` falls on the open centre album, as the last frame drew it. */
-  private is_over_open_centre_album(view_x: number): boolean {
-    return (
-      this.centre_album_open &&
-      find_drawn_album_index_at(
-        this.drawn_scroll_x + view_x,
-        this.drawn_album_index_range.first_album_index,
-        this.drawn_album_index_range.last_album_index,
-        this.drawn_opening_albums,
-        this.shelf_geometry,
-      ) === this.focused_album_index
+  /** The album that the last frame drew at `view_x`, or -1 for none. */
+  private find_album_index_at_view_x(view_x: number): number {
+    return find_drawn_album_index_at(
+      this.drawn_scroll_x + view_x,
+      this.drawn_album_index_range.first_album_index,
+      this.drawn_album_index_range.last_album_index,
+      this.drawn_opening_albums,
+      this.shelf_geometry,
     );
   }
 
