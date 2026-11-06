@@ -18,6 +18,8 @@ const ALBUM_NAME_REST_AT_START_MS = 3_000;
 const ALBUM_NAME_FIRST_SCROLL_DELAY_MS = 1_000;
 /** The album name rests at its end this long before it scrolls back. */
 const ALBUM_NAME_REST_AT_END_MS = 1_000;
+/** An end of the album name with text hidden past it fades out over this width. */
+const ALBUM_NAME_FADE_WIDTH = "1.25em";
 
 export interface ShelfAlbumSpinLayerOptions {
   host_element: HTMLElement;
@@ -259,7 +261,7 @@ export class ShelfAlbumSpinLayer {
 
   /**
    * Scrolls an album name too long for the back to show its end, rests, and scrolls back, then repeats.
-   * The animation ends with the stage, when the album goes back on the shelf.
+   * Each end fades out while text is hidden past it. The animation ends with the stage.
    */
   private start_album_name_scroll(): void {
     const album_name = this.spin_stage?.querySelector<HTMLElement>(".shelf_album_back_album_name");
@@ -274,26 +276,46 @@ export class ShelfAlbumSpinLayer {
     album_name.classList.add("shelf_album_back_album_name_scrolling");
     const scroll_duration_ms = (overflow_width / ALBUM_NAME_SCROLL_SPEED_PX_PER_S) * 1000;
     const cycle_duration_ms = ALBUM_NAME_REST_AT_START_MS + 2 * scroll_duration_ms + ALBUM_NAME_REST_AT_END_MS;
+    const scroll_start_offset = ALBUM_NAME_REST_AT_START_MS / cycle_duration_ms;
+    const scroll_end_offset = (ALBUM_NAME_REST_AT_START_MS + scroll_duration_ms) / cycle_duration_ms;
+    const scroll_back_offset =
+      (ALBUM_NAME_REST_AT_START_MS + scroll_duration_ms + ALBUM_NAME_REST_AT_END_MS) / cycle_duration_ms;
+    const timing: KeyframeAnimationOptions = {
+      duration: cycle_duration_ms,
+      iterations: Infinity,
+      // A negative delay shortens the first rest at the start.
+      delay: ALBUM_NAME_FIRST_SCROLL_DELAY_MS - ALBUM_NAME_REST_AT_START_MS,
+    };
     const at_start = "translateX(0)";
     const at_end = `translateX(${-overflow_width}px)`;
     album_name_text.animate(
       [
         { transform: at_start, offset: 0 },
-        { transform: at_start, offset: ALBUM_NAME_REST_AT_START_MS / cycle_duration_ms, easing: "ease-in-out" },
-        { transform: at_end, offset: (ALBUM_NAME_REST_AT_START_MS + scroll_duration_ms) / cycle_duration_ms },
-        {
-          transform: at_end,
-          offset: (ALBUM_NAME_REST_AT_START_MS + scroll_duration_ms + ALBUM_NAME_REST_AT_END_MS) / cycle_duration_ms,
-          easing: "ease-in-out",
-        },
+        { transform: at_start, offset: scroll_start_offset, easing: "ease-in-out" },
+        { transform: at_end, offset: scroll_end_offset },
+        { transform: at_end, offset: scroll_back_offset, easing: "ease-in-out" },
         { transform: at_start, offset: 1 },
       ],
-      {
-        duration: cycle_duration_ms,
-        iterations: Infinity,
-        // A negative delay shortens the first rest at the start.
-        delay: ALBUM_NAME_FIRST_SCROLL_DELAY_MS - ALBUM_NAME_REST_AT_START_MS,
-      },
+      timing,
+    );
+    // At the start only the right end fades; at the end only the left end fades.
+    const fades_at_start = {
+      "--album_back_album_name_left_fade": "0px",
+      "--album_back_album_name_right_fade": ALBUM_NAME_FADE_WIDTH,
+    };
+    const fades_at_end = {
+      "--album_back_album_name_left_fade": ALBUM_NAME_FADE_WIDTH,
+      "--album_back_album_name_right_fade": "0px",
+    };
+    album_name.animate(
+      [
+        { ...fades_at_start, offset: 0 },
+        { ...fades_at_start, offset: scroll_start_offset, easing: "ease-in-out" },
+        { ...fades_at_end, offset: scroll_end_offset },
+        { ...fades_at_end, offset: scroll_back_offset, easing: "ease-in-out" },
+        { ...fades_at_start, offset: 1 },
+      ],
+      timing,
     );
   }
 

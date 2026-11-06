@@ -434,9 +434,34 @@ code {
   font-weight: 700;
 }
 
-/* A long album name loses its ellipsis while it scrolls, so its end can come into view. */
+/*
+ * A long album name loses its ellipsis while it scrolls, so its end can come into view.
+ * Each end fades out over a width that the scroll animation sets, while text is hidden past it.
+ * The widths are registered as lengths so that they animate smoothly.
+ */
+@property --album_back_album_name_left_fade {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --album_back_album_name_right_fade {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
 .shelf_album_back_album_name_scrolling {
+  --album_back_album_name_fade_mask: linear-gradient(
+    to right,
+    transparent,
+    #000 var(--album_back_album_name_left_fade),
+    #000 calc(100% - var(--album_back_album_name_right_fade)),
+    transparent
+  );
   text-overflow: clip;
+  -webkit-mask-image: var(--album_back_album_name_fade_mask);
+  mask-image: var(--album_back_album_name_fade_mask);
 }
 
 .shelf_album_back_album_name_scrolling .shelf_album_back_album_name_text {
