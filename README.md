@@ -2,7 +2,8 @@
 
 Shelf is a macOS menu bar app that shows your saved Spotify albums as a shelf of CD jewel cases.
 Click the tray icon and a shelf opens under the menu bar, across the width of the screen.
-Scroll left and right to flick through your albums; the album in the middle turns to show its cover.
+Scroll left and right to flick through your albums. Click a spine to open that album and show its cover.
+While an album is open, the album in the middle turns to show its cover as you scroll.
 Click the open album to play it in Spotify.
 
 The idea comes from the Spine Music wall display.
@@ -81,14 +82,17 @@ Shelf appears as an icon in the menu bar, not in the Dock.
 | Action | Result |
 |---|---|
 | Click the tray icon | Opens or closes the shelf. |
-| Scroll or swipe sideways | Moves along the shelf. It settles with one album in the middle. |
-| Click a spine | Brings that album to the middle. |
+| Scroll or swipe sideways | Moves along the shelf. It settles with one album in the middle. While an album is open, the album in the middle opens. |
+| Click a spine | Brings that album to the middle and opens it. |
 | Click the open album | Plays it in Spotify. |
+| Put CD away | Closes the open album, so the shelf shows only spines. |
 | Esc, or click elsewhere | Closes the shelf. |
 | Refresh, Settings, Quit | The buttons at the top of the shelf. |
 | Start Shelf at login | A checkbox in Settings, on by default. Builds from `pnpm tauri dev` do not register at login. |
 
-When the shelf opens, the album Spotify is playing is in the middle, and a green bar on the ledge marks it.
+When the shelf opens, the album of Spotify's current track is open in the middle, playing or paused.
+A green bar on the ledge marks it while it plays.
+If that album is not on the shelf, or nothing plays, the shelf stays where you left it with no album open.
 
 ## How it works
 

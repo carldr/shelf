@@ -24,6 +24,8 @@ export interface ShelfView {
   set_now_playing_album(spotify_album_id: string | null): void;
   /** Puts the album in the middle, open. Returns false if it is not in the library. */
   jump_to_album(spotify_album_id: string): boolean;
+  /** Closes the centre album, so the shelf shows only spines. */
+  close_centre_album(): void;
   show_albums(sorted_saved_albums: readonly SavedAlbum[]): void;
   show_sync_status(sync_status_text: string): void;
   /**
@@ -58,6 +60,7 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
         <span class="shelf_view_album_count"></span>
         <span class="shelf_view_sync_status" role="status"></span>
         <select class="shelf_view_sort_order" aria-label="Sort order"></select>
+        <button type="button" class="shelf_view_put_cd_away_button" title="Close the open CD" disabled>Put CD away</button>
         <button type="button" class="shelf_view_refresh_button" title="Refresh library">Refresh</button>
         <button type="button" class="shelf_view_settings_button" title="Settings">Settings</button>
         <button type="button" class="shelf_view_quit_button" title="Quit Shelf">Quit</button>
@@ -81,6 +84,7 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
   sort_order_select.addEventListener("change", () =>
     options.on_sort_order_change(sort_order_select.value as SavedAlbumSortOrder),
   );
+  const put_cd_away_button = container.querySelector<HTMLButtonElement>(".shelf_view_put_cd_away_button")!;
   container.querySelector(".shelf_view_refresh_button")!.addEventListener("click", options.on_refresh_library);
   container.querySelector(".shelf_view_settings_button")!.addEventListener("click", options.on_open_settings);
   container.querySelector(".shelf_view_quit_button")!.addEventListener("click", options.on_quit);
@@ -90,8 +94,8 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
   const sync_overlay_element = container.querySelector<HTMLElement>(".shelf_view_sync_overlay")!;
   const sync_progress_element = container.querySelector<HTMLElement>(".shelf_view_sync_progress")!;
   const toolbar_controls = container.querySelectorAll<HTMLButtonElement | HTMLSelectElement>(
-    // Quit stays enabled during a sync.
-    ".shelf_view_toolbar button:not(.shelf_view_quit_button), .shelf_view_toolbar select",
+    // Quit stays enabled during a sync. Put CD away follows the centre album instead.
+    ".shelf_view_toolbar button:not(.shelf_view_quit_button):not(.shelf_view_put_cd_away_button), .shelf_view_toolbar select",
   );
   let sync_in_progress = false;
   let window_shown = true;
@@ -108,11 +112,16 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
       : options.load_cover_bitmap,
     load_cover_thumbnail_bitmap: options.load_cover_thumbnail_bitmap,
     on_album_click: options.on_album_click,
+    on_centre_album_open_change: (centre_album_open) => (put_cd_away_button.disabled = !centre_album_open),
     on_frame: STRESS_TEST_ALBUM_COUNT ? (shelf_frame_timing) => shelf_frame_timings.push(shelf_frame_timing) : undefined,
     stress_test_switches: STRESS_TEST_SWITCHES,
   });
 
+  put_cd_away_button.addEventListener("click", () => shelf_renderer.close_centre_album());
+
   if (STRESS_TEST_ALBUM_COUNT) {
+    // The sweep measures the shelf with an album opening in the middle, as a user sees it while scrolling.
+    shelf_renderer.open_centre_album();
     run_stress_test_sweep(
       shelf_renderer,
       shelf_frame_timings,
@@ -143,6 +152,7 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
     },
     set_now_playing_album: (spotify_album_id) => shelf_renderer.set_now_playing_album(spotify_album_id),
     jump_to_album: (spotify_album_id) => shelf_renderer.jump_to_album(spotify_album_id),
+    close_centre_album: () => shelf_renderer.close_centre_album(),
     show_sync_status(sync_status_text) {
       if (!STRESS_TEST_ALBUM_COUNT) {
         sync_status_element.textContent = sync_status_text;

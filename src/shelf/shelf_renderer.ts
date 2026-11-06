@@ -73,6 +73,8 @@ export interface ShelfRendererOptions {
   /** Produces the album's cover thumbnail, or null when it has none. */
   load_cover_thumbnail_bitmap: (saved_album: SavedAlbum) => Promise<ImageBitmap | null>;
   on_album_click: (saved_album: SavedAlbum) => void;
+  /** Receives true when the centre album opens, and false when it closes. */
+  on_centre_album_open_change: (centre_album_open: boolean) => void;
   /** Receives the duration of each frame, for the performance overlay. */
   on_frame?: (shelf_frame_timing: ShelfFrameTiming) => void;
   /** Dev-only switches that leave out parts of the drawing, to find what limits the frame rate. */
@@ -190,6 +192,8 @@ export class ShelfRenderer {
   private scroll_target_x = 0;
   private snap_timer: ReturnType<typeof setTimeout> | undefined;
   private focused_album_index = -1;
+  /** False while the centre album stays closed, so the shelf shows only spines. */
+  private centre_album_open = false;
   private layout_start_ms = 0;
   private layout_end_ms = 0;
   /** The last frame's layout, for hit testing clicks against what is on screen. */
@@ -283,7 +287,25 @@ export class ShelfRenderer {
     // Open it at once, so the shelf appears with the album already out.
     this.open_amounts_by_album_index.clear();
     this.open_amounts_by_album_index.set(album_index, 1);
+    this.set_centre_album_open(true);
     return true;
+  }
+
+  /** Opens the album in the middle, and each album that scrolls to the middle after it. */
+  open_centre_album(): void {
+    this.set_centre_album_open(true);
+  }
+
+  /** Closes the centre album, so the shelf shows only spines until an album is clicked. */
+  close_centre_album(): void {
+    this.set_centre_album_open(false);
+  }
+
+  private set_centre_album_open(centre_album_open: boolean): void {
+    if (centre_album_open !== this.centre_album_open) {
+      this.centre_album_open = centre_album_open;
+      this.options.on_centre_album_open_change(centre_album_open);
+    }
   }
 
   /** Scrolls, with easing, so that `scroll_target_x` is the left edge of the view. */
@@ -357,7 +379,8 @@ export class ShelfRenderer {
 
   /**
    * The pointer does not move focus: the open album is always the one in the middle.
-   * Clicking it plays it; clicking another album brings that album to the middle.
+   * With the centre album open, clicking it plays it, and clicking another album brings that album to the middle.
+   * With the centre album closed, clicking an album brings it to the middle and opens it.
    */
   private listen_to_click_and_wheel(): void {
     const canvas = this.application.canvas;
@@ -372,11 +395,12 @@ export class ShelfRenderer {
       if (clicked_album_index === -1) {
         return;
       }
-      if (clicked_album_index === this.focused_album_index) {
+      if (this.centre_album_open && clicked_album_index === this.focused_album_index) {
         this.options.on_album_click(this.saved_albums[clicked_album_index]);
-      } else {
-        this.scroll_album_to_centre(clicked_album_index);
+        return;
       }
+      this.scroll_album_to_centre(clicked_album_index);
+      this.set_centre_album_open(true);
     });
     canvas.addEventListener(
       "wheel",
@@ -476,12 +500,12 @@ export class ShelfRenderer {
   }
 
   private update_open_amounts(frame_duration_ms: number): OpeningAlbum[] {
-    if (!this.open_amounts_by_album_index.has(this.focused_album_index)) {
+    if (this.centre_album_open && !this.open_amounts_by_album_index.has(this.focused_album_index)) {
       this.open_amounts_by_album_index.set(this.focused_album_index, 0);
     }
     const opening_albums: OpeningAlbum[] = [];
     for (const [album_index, open_amount] of this.open_amounts_by_album_index) {
-      const target_open_amount = album_index === this.focused_album_index ? 1 : 0;
+      const target_open_amount = this.centre_album_open && album_index === this.focused_album_index ? 1 : 0;
       const next_open_amount = ease_toward(
         open_amount,
         target_open_amount,
@@ -551,7 +575,9 @@ export class ShelfRenderer {
 
     // The full cover loads only once the album has stayed in the middle, then fades in.
     const album_has_settled_in_middle =
-      album_index === this.focused_album_index && performance.now() - this.focused_since_ms >= FULL_COVER_LOAD_DELAY_MS;
+      this.centre_album_open &&
+      album_index === this.focused_album_index &&
+      performance.now() - this.focused_since_ms >= FULL_COVER_LOAD_DELAY_MS;
     const full_cover_texture = !covers_enabled
       ? null
       : album_has_settled_in_middle

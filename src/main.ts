@@ -57,7 +57,10 @@ void listen("shelf_window_hidden", () => {
   connected_spotify_account?.now_playing_poller.stop();
 });
 
-/** Resumes drawing, starts the now-playing poll, and opens the playing album in the middle. */
+/**
+ * Resumes drawing, starts the now-playing poll, and opens the album of the current track in the middle.
+ * If that album is not in the library, or no track plays, the shelf keeps its position and closes the centre album.
+ */
 async function show_shelf_window_contents(): Promise<void> {
   if (!shelf_view || shelf_view_root.hidden) {
     return;
@@ -69,8 +72,8 @@ async function show_shelf_window_contents(): Promise<void> {
   }
   now_playing_poller.start();
   const now_playing_album = await now_playing_poller.poll_now();
-  if (now_playing_album) {
-    shelf_view.jump_to_album(now_playing_album.spotify_album_id);
+  if (!now_playing_album || !shelf_view.jump_to_album(now_playing_album.spotify_album_id)) {
+    shelf_view.close_centre_album();
   }
 }
 
