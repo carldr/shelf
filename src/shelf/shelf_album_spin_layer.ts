@@ -11,6 +11,13 @@ const SPIN_BUTTON_INSET = 8;
 /** The thumbnail on the back, as a share of the cover size. It matches `--album_back_thumbnail_size` in styles.css. */
 const ALBUM_BACK_THUMBNAIL_SIZE_TO_COVER_SIZE_RATIO = 0.13;
 const FALLBACK_SPINE_COLOUR = "#808080";
+/** A long album name scrolls at this speed to show its end, and back. */
+const ALBUM_NAME_SCROLL_SPEED_PX_PER_S = 30;
+/** The album name rests at its start this long between scrolls, and this long before the first one. */
+const ALBUM_NAME_REST_AT_START_MS = 3_000;
+const ALBUM_NAME_FIRST_SCROLL_DELAY_MS = 1_000;
+/** The album name rests at its end this long before it scrolls back. */
+const ALBUM_NAME_REST_AT_END_MS = 1_000;
 
 export interface ShelfAlbumSpinLayerOptions {
   host_element: HTMLElement;
@@ -147,6 +154,7 @@ export class ShelfAlbumSpinLayer {
     this.spin_timer = setTimeout(() => {
       if (this.album_spin_state === "turning_to_back") {
         this.album_spin_state = "showing_back";
+        this.start_album_name_scroll();
       }
     }, ALBUM_SPIN_DURATION_MS);
     void this.show_album_tracks(settled_open_album, album_tracks);
@@ -228,7 +236,10 @@ export class ShelfAlbumSpinLayer {
     back_artist.textContent = saved_album.artist_names;
     const back_album_name = document.createElement("div");
     back_album_name.className = "shelf_album_back_album_name";
-    back_album_name.textContent = saved_album.album_name;
+    const back_album_name_text = document.createElement("span");
+    back_album_name_text.className = "shelf_album_back_album_name_text";
+    back_album_name_text.textContent = saved_album.album_name;
+    back_album_name.appendChild(back_album_name_text);
     back_titles.append(back_album_name, back_artist);
     back_header.append(back_thumbnail, back_titles);
     const track_list = document.createElement("div");
@@ -244,6 +255,46 @@ export class ShelfAlbumSpinLayer {
     this.options.host_element.appendChild(spin_stage);
     this.spin_stage = spin_stage;
     this.spin_box = spin_box;
+  }
+
+  /**
+   * Scrolls an album name too long for the back to show its end, rests, and scrolls back, then repeats.
+   * The animation ends with the stage, when the album goes back on the shelf.
+   */
+  private start_album_name_scroll(): void {
+    const album_name = this.spin_stage?.querySelector<HTMLElement>(".shelf_album_back_album_name");
+    const album_name_text = album_name?.querySelector<HTMLElement>(".shelf_album_back_album_name_text");
+    if (!album_name || !album_name_text) {
+      return;
+    }
+    const overflow_width = album_name.scrollWidth - album_name.clientWidth;
+    if (overflow_width <= 0) {
+      return;
+    }
+    album_name.classList.add("shelf_album_back_album_name_scrolling");
+    const scroll_duration_ms = (overflow_width / ALBUM_NAME_SCROLL_SPEED_PX_PER_S) * 1000;
+    const cycle_duration_ms = ALBUM_NAME_REST_AT_START_MS + 2 * scroll_duration_ms + ALBUM_NAME_REST_AT_END_MS;
+    const at_start = "translateX(0)";
+    const at_end = `translateX(${-overflow_width}px)`;
+    album_name_text.animate(
+      [
+        { transform: at_start, offset: 0 },
+        { transform: at_start, offset: ALBUM_NAME_REST_AT_START_MS / cycle_duration_ms, easing: "ease-in-out" },
+        { transform: at_end, offset: (ALBUM_NAME_REST_AT_START_MS + scroll_duration_ms) / cycle_duration_ms },
+        {
+          transform: at_end,
+          offset: (ALBUM_NAME_REST_AT_START_MS + scroll_duration_ms + ALBUM_NAME_REST_AT_END_MS) / cycle_duration_ms,
+          easing: "ease-in-out",
+        },
+        { transform: at_start, offset: 1 },
+      ],
+      {
+        duration: cycle_duration_ms,
+        iterations: Infinity,
+        // A negative delay shortens the first rest at the start.
+        delay: ALBUM_NAME_FIRST_SCROLL_DELAY_MS - ALBUM_NAME_REST_AT_START_MS,
+      },
+    );
   }
 
   private async show_album_tracks(

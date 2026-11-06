@@ -434,6 +434,15 @@ code {
   font-weight: 700;
 }
 
+/* A long album name loses its ellipsis while it scrolls, so its end can come into view. */
+.shelf_album_back_album_name_scrolling {
+  text-overflow: clip;
+}
+
+.shelf_album_back_album_name_scrolling .shelf_album_back_album_name_text {
+  display: inline-block;
+}
+
 .shelf_album_back_artist {
   font-size: var(--album_back_artist_font_size);
   opacity: 0.85;
