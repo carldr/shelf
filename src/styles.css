@@ -328,14 +328,14 @@ code {
 
 /*
  * The back of the album uses the spine's type: the same family and label colour, and sizes from the spine label size.
- * The album name leads in bold; the track names are bold at the spine label size. Every space is a share of the cover size.
+ * The album name leads in bold; the track names are regular at the spine label size. Every space is a share of the cover size.
  */
 .shelf_album_spin_back_face {
   --album_back_padding: calc(var(--album_spin_cover_size) * 0.075);
   --album_back_thumbnail_size: calc(var(--album_spin_cover_size) * 0.13);
   --album_back_column_gap: calc(var(--album_spin_cover_size) * 0.04);
   --album_back_header_gap: calc(var(--album_spin_cover_size) * 0.05);
-  --album_back_album_name_font_size: calc(var(--album_spin_spine_label_font_size) * 1.5);
+  --album_back_album_name_font_size: calc(var(--album_spin_spine_label_font_size) * 1.75);
   --album_back_artist_font_size: calc(var(--album_spin_spine_label_font_size) * 1.15);
   --album_back_track_font_size: var(--album_spin_spine_label_font_size);
   /* The track number column: wide enough for "24.", and the gap after it. */
@@ -490,22 +490,23 @@ code {
 
 .shelf_album_back_track_number,
 .shelf_album_back_track_duration {
+  font-weight: 100;
   font-variant-numeric: tabular-nums;
 }
 
 .shelf_album_back_track_name {
-  font-weight: 700;
+  font-weight: 400;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 /*
- * The playing track: its name in the Black weight, after a play icon in the label colour.
+ * The playing track: its name in bold, after a play icon in the label colour.
  * The icon starts where the other names start, so it moves the name in by the icon's width.
  */
 .shelf_album_back_track_row_now_playing .shelf_album_back_track_name {
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .shelf_album_back_track_row_now_playing .shelf_album_back_track_name::before {
