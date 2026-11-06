@@ -186,10 +186,11 @@ export class ShelfAlbumSpinLayer {
     spin_stage.addEventListener(
       "wheel",
       (wheel_event) => {
-        // A sideways scroll puts the album back; a vertical scroll is left to the track list.
+        // A sideways scroll puts the album back at once, so the scrolls after it move the shelf.
+        // A vertical scroll is left to the track list.
         if (Math.abs(wheel_event.deltaX) > Math.abs(wheel_event.deltaY)) {
           wheel_event.preventDefault();
-          this.turn_to_cover();
+          this.put_album_back_at_once();
         }
       },
       { passive: false },

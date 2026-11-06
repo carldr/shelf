@@ -82,12 +82,10 @@ export interface ShelfRendererOptions {
   /** Receives the open album once it is fully open and the shelf is still, and null when that ends. */
   on_settled_open_album_change: (settled_open_album: SettledOpenAlbum | null) => void;
   /**
-   * Receives each click on the shelf while `set_shelf_input_locked` holds it.
-   * If the callback unlocks the shelf, the click then goes ahead as usual.
+   * Receives each click and sideways scroll on the shelf while `set_shelf_input_locked` holds it.
+   * If the callback unlocks the shelf, the click or scroll then goes ahead as usual.
    */
-  on_shelf_click_while_locked: () => void;
-  /** Receives each sideways scroll that `set_shelf_input_locked` stopped. */
-  on_shelf_scroll_while_locked: () => void;
+  on_shelf_input_while_locked: () => void;
   /** Receives the duration of each frame, for the performance overlay. */
   on_frame?: (shelf_frame_timing: ShelfFrameTiming) => void;
   /** Dev-only switches that leave out parts of the drawing, to find what limits the frame rate. */
@@ -336,10 +334,7 @@ export class ShelfRenderer {
       : -1;
   }
 
-  /**
-   * While locked, clicks go first to `on_shelf_click_while_locked`,
-   * and sideways scrolls go only to `on_shelf_scroll_while_locked`.
-   */
+  /** While locked, each click and sideways scroll goes first to `on_shelf_input_while_locked`. */
   set_shelf_input_locked(shelf_input_locked: boolean): void {
     this.shelf_input_locked = shelf_input_locked;
   }
@@ -435,7 +430,7 @@ export class ShelfRenderer {
     const canvas = this.application.canvas;
     canvas.addEventListener("click", (click_event) => {
       if (this.shelf_input_locked) {
-        this.options.on_shelf_click_while_locked();
+        this.options.on_shelf_input_while_locked();
         if (this.shelf_input_locked) {
           return;
         }
@@ -467,8 +462,10 @@ export class ShelfRenderer {
         }
         wheel_event.preventDefault();
         if (this.shelf_input_locked) {
-          this.options.on_shelf_scroll_while_locked();
-          return;
+          this.options.on_shelf_input_while_locked();
+          if (this.shelf_input_locked) {
+            return;
+          }
         }
         const line_scale = wheel_event.deltaMode === WheelEvent.DOM_DELTA_LINE ? WHEEL_LINE_HEIGHT_PX : 1;
         this.scroll_to(this.scroll_target_x + wheel_event.deltaX * line_scale);
