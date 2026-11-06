@@ -37,16 +37,18 @@ pub fn install_tray_icon_and_window_behaviour(app: &mut App) -> tauri::Result<()
         .icon(tauri::include_image!("icons/tray_icon_template.png"))
         .icon_as_template(true)
         .tooltip("Shelf")
-        .on_tray_icon_event(|tray_icon, tray_icon_event| {
-            if let TrayIconEvent::Click {
+        .on_tray_icon_event(|tray_icon, tray_icon_event| match tray_icon_event {
+            TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
                 rect,
                 ..
-            } = tray_icon_event
-            {
-                toggle_shelf_window(tray_icon.app_handle(), rect);
+            } => toggle_shelf_window(tray_icon.app_handle(), rect),
+            // The pointer on the icon often comes before a click, so the frontend can read Spotify's state early.
+            TrayIconEvent::Enter { .. } if !self::shelf_window(tray_icon.app_handle()).is_visible().unwrap_or(false) => {
+                let _ = tray_icon.app_handle().emit("shelf_tray_icon_hovered", ());
             }
+            _ => {}
         })
         .build(app)?;
 

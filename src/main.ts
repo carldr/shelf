@@ -24,7 +24,7 @@ import {
 import { sync_saved_albums_library } from "./library/saved_albums_sync";
 import { SpotifyAccessTokenSession } from "./spotify/spotify_access_token_session";
 import { describe_spotify_playback_error, play_spotify_album } from "./spotify/spotify_album_playback";
-import { SpotifyNowPlayingPoller } from "./spotify/spotify_now_playing_poller";
+import { SpotifyNowPlayingPoller, type SpotifyNowPlayingTrack } from "./spotify/spotify_now_playing_poller";
 import { authorize_spotify_with_pkce, SpotifyRefreshTokenRejectedError } from "./spotify/spotify_pkce_auth";
 import { SpotifyWebApiClient } from "./spotify/spotify_web_api_client";
 import { create_shelf_view, type ShelfView } from "./views/shelf_view";
@@ -55,8 +55,40 @@ document.addEventListener("keydown", (keyboard_event) => {
   }
 });
 
-void listen("shelf_window_shown", () => void show_shelf_window_contents());
+/** A poll that the pointer on the tray icon starts serves a showing within this time, and blocks another such poll. */
+const HOVER_NOW_PLAYING_POLL_REUSE_MS = 2_500;
+/** The last poll that the pointer on the tray icon started, and when. */
+let hover_now_playing_poll: { started_at_ms: number; now_playing_track: Promise<SpotifyNowPlayingTrack | null> } | null =
+  null;
+let shelf_window_visible = false;
+
+/** The hover poll, if it started recently enough to serve now, or null. */
+function recent_hover_now_playing_poll(): Promise<SpotifyNowPlayingTrack | null> | null {
+  return hover_now_playing_poll && performance.now() - hover_now_playing_poll.started_at_ms < HOVER_NOW_PLAYING_POLL_REUSE_MS
+    ? hover_now_playing_poll.now_playing_track
+    : null;
+}
+
+// The pointer on the tray icon reads Spotify's state and sets the hidden shelf, so that a click opens it ready.
+void listen("shelf_tray_icon_hovered", async () => {
+  const now_playing_poller = connected_spotify_account?.now_playing_poller;
+  if (!now_playing_poller || !shelf_view || shelf_window_visible || recent_hover_now_playing_poll()) {
+    return;
+  }
+  const now_playing_track = now_playing_poller.poll_now();
+  hover_now_playing_poll = { started_at_ms: performance.now(), now_playing_track };
+  const hover_now_playing_track = await now_playing_track;
+  if (!shelf_window_visible) {
+    shelf_view.show_now_playing_album_at_once(hover_now_playing_track?.spotify_album_id ?? null);
+  }
+});
+
+void listen("shelf_window_shown", () => {
+  shelf_window_visible = true;
+  void show_shelf_window_contents();
+});
 void listen("shelf_window_hidden", () => {
+  shelf_window_visible = false;
   // The shelf is set now as the next showing will set it, so it does not change in view when the window opens.
   const last_now_playing_track = connected_spotify_account?.now_playing_poller.last_now_playing_track ?? null;
   shelf_view?.show_now_playing_album_at_once(last_now_playing_track?.spotify_album_id ?? null);
@@ -78,7 +110,8 @@ async function show_shelf_window_contents(): Promise<void> {
     return;
   }
   now_playing_poller.start();
-  const now_playing_track = await now_playing_poller.poll_now();
+  // A poll that the pointer on the tray icon started just before is used, not repeated.
+  const now_playing_track = await (recent_hover_now_playing_poll() ?? now_playing_poller.poll_now());
   if (!now_playing_track || !shelf_view.jump_to_album(now_playing_track.spotify_album_id)) {
     shelf_view.close_centre_album();
   }
