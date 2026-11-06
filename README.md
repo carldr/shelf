@@ -10,6 +10,8 @@ The idea comes from the Spine Music wall display.
 
 ![Shelf showing a row of CD spines with one album open](docs/shelf_screenshot.png)
 
+![The open album turned round, showing its track list with the playing track marked](docs/shelf_album_back_screenshot.png)
+
 ## Requirements
 
 - macOS 11 or later. The code builds on Windows and Linux, but only macOS is tested.
