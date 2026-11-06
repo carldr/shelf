@@ -416,12 +416,13 @@ export class ShelfRenderer {
     canvas.addEventListener(
       "wheel",
       (wheel_event) => {
+        // Only sideways scrolling moves the shelf. Vertical scrolling does nothing.
+        if (Math.abs(wheel_event.deltaX) <= Math.abs(wheel_event.deltaY)) {
+          return;
+        }
         wheel_event.preventDefault();
         const line_scale = wheel_event.deltaMode === WheelEvent.DOM_DELTA_LINE ? WHEEL_LINE_HEIGHT_PX : 1;
-        // A vertical mouse wheel scrolls the shelf sideways too.
-        const wheel_delta =
-          Math.abs(wheel_event.deltaX) > Math.abs(wheel_event.deltaY) ? wheel_event.deltaX : wheel_event.deltaY;
-        this.scroll_to(this.scroll_target_x + wheel_delta * line_scale);
+        this.scroll_to(this.scroll_target_x + wheel_event.deltaX * line_scale);
         // Trackpad momentum arrives as more wheel events, so snap only once they stop.
         clearTimeout(this.snap_timer);
         this.snap_timer = setTimeout(() => this.snap_to_nearest_album(), WHEEL_SNAP_DELAY_MS);
