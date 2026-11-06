@@ -496,10 +496,34 @@ code {
   scrollbar-color: color-mix(in srgb, var(--album_spin_label_colour) 30%, transparent) transparent;
 }
 
-/* A list with more tracks below fades out its last visible row. The gutter keeps the scrollbar clear of the durations. */
+/*
+ * A list with more tracks below fades out its last visible row, and a list scrolled down fades out its first.
+ * The gutter keeps the scrollbar clear of the durations.
+ */
+.shelf_album_back_track_list {
+  --album_back_track_list_top_fade: 0px;
+  --album_back_track_list_bottom_fade: 0px;
+  --album_back_track_list_fade_mask: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--album_back_track_list_top_fade),
+    #000 calc(100% - var(--album_back_track_list_bottom_fade)),
+    transparent
+  );
+}
+
+.shelf_album_back_track_list_more_above {
+  --album_back_track_list_top_fade: var(--album_back_track_row_height);
+}
+
 .shelf_album_back_track_list_more_below {
-  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--album_back_track_row_height)), transparent);
-  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--album_back_track_row_height)), transparent);
+  --album_back_track_list_bottom_fade: var(--album_back_track_row_height);
+}
+
+.shelf_album_back_track_list_more_above,
+.shelf_album_back_track_list_more_below {
+  -webkit-mask-image: var(--album_back_track_list_fade_mask);
+  mask-image: var(--album_back_track_list_fade_mask);
 }
 
 .shelf_album_back_track_list:has(.shelf_album_back_track_row:nth-child(19)) {

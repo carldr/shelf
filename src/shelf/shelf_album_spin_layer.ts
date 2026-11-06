@@ -343,11 +343,13 @@ export class ShelfAlbumSpinLayer {
     );
     track_list.style.setProperty("--album_back_track_row_height", `${row_height}px`);
     track_list.style.setProperty("--album_back_track_type_scale", String(type_scale));
-    const update_track_list_fade = () =>
+    const update_track_list_fade = () => {
+      track_list.classList.toggle("shelf_album_back_track_list_more_above", track_list.scrollTop > 1);
       track_list.classList.toggle(
         "shelf_album_back_track_list_more_below",
         track_list.scrollTop + track_list.clientHeight < track_list.scrollHeight - 1,
       );
+    };
     track_list.addEventListener("scroll", update_track_list_fade);
 
     const { stored_album_tracks, remaining_album_tracks } = album_tracks_load;
