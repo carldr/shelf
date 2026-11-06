@@ -338,8 +338,9 @@ code {
   --album_back_album_name_font_size: calc(var(--album_spin_spine_label_font_size) * 1.5);
   --album_back_artist_font_size: calc(var(--album_spin_spine_label_font_size) * 1.15);
   --album_back_track_font_size: var(--album_spin_spine_label_font_size);
-  /* The track number column: wide enough for "24." */
-  --album_back_track_number_width: 2.2em;
+  /* The track number column: wide enough for "24.", and the gap after it. */
+  --album_back_track_number_width: 1.7em;
+  --album_back_track_number_gap: 0.5em;
   display: flex;
   flex-direction: column;
   padding: var(--album_back_padding);
@@ -462,7 +463,7 @@ code {
 
 .shelf_album_back_track_list_message {
   margin: 0;
-  padding-left: var(--album_back_track_number_width);
+  padding-left: calc(var(--album_back_track_number_width) + var(--album_back_track_number_gap));
   font-size: var(--album_back_track_font_size);
   opacity: 0.6;
 }
@@ -472,7 +473,7 @@ code {
   position: relative;
   display: grid;
   grid-template-columns: var(--album_back_track_number_width) minmax(0, 1fr) auto;
-  column-gap: var(--album_back_column_gap);
+  column-gap: var(--album_back_track_number_gap);
   align-items: center;
   width: 100%;
   height: var(--album_back_track_row_height);
