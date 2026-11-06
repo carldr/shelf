@@ -14,6 +14,7 @@ import { ShelfCoverTextureCache } from "./shelf_cover_texture_cache";
 import { ShelfCoverThumbnailTextures } from "./shelf_cover_thumbnail_textures";
 import {
   compute_album_rect_x,
+  compute_drawn_scroll_x,
   compute_scroll_x_centring_album,
   compute_scroll_x_range_with_centre_album_closed,
   compute_scroll_x_range_with_centre_album_open,
@@ -190,7 +191,10 @@ export class ShelfRenderer {
   private spine_label_texts_by_album_index: (SpineLabelTexts | undefined)[] = [];
   private saved_albums: readonly SavedAlbum[] = [];
   private shelf_geometry: ShelfGeometry = { spine_width: 24, cover_size: 200, edge_padding: SHELF_EDGE_PADDING };
+  /** Moved by scrolling and clicks. The album at its middle is the centre album. */
   private scroll_x = 0;
+  /** `scroll_x` limited so that the drawn shelf ends at the edges of the view. The shelf is drawn here. */
+  private drawn_scroll_x = 0;
   private scroll_target_x = 0;
   private snap_timer: ReturnType<typeof setTimeout> | undefined;
   private focused_album_index = -1;
@@ -392,7 +396,7 @@ export class ShelfRenderer {
     const canvas = this.application.canvas;
     canvas.addEventListener("click", (click_event) => {
       const clicked_album_index = find_drawn_album_index_at(
-        this.scroll_x + click_event.offsetX,
+        this.drawn_scroll_x + click_event.offsetX,
         this.drawn_album_index_range.first_album_index,
         this.drawn_album_index_range.last_album_index,
         this.drawn_opening_albums,
@@ -470,12 +474,23 @@ export class ShelfRenderer {
       this.focused_since_ms = performance.now();
     }
     const opening_albums = this.update_open_amounts(frame_duration_ms);
+    this.drawn_scroll_x = compute_drawn_scroll_x(
+      this.scroll_x,
+      album_count,
+      opening_albums,
+      view_width,
+      this.shelf_geometry,
+    );
 
     // Opening albums push neighbours at most half a cover each way, so a margin of one cover covers them.
     const margin_x = this.shelf_geometry.cover_size;
-    const first_visible_index = find_closed_album_index_at(this.scroll_x - margin_x, album_count, this.shelf_geometry);
+    const first_visible_index = find_closed_album_index_at(
+      this.drawn_scroll_x - margin_x,
+      album_count,
+      this.shelf_geometry,
+    );
     const last_visible_index = find_closed_album_index_at(
-      this.scroll_x + view_width + margin_x,
+      this.drawn_scroll_x + view_width + margin_x,
       album_count,
       this.shelf_geometry,
     );
@@ -500,7 +515,7 @@ export class ShelfRenderer {
       return;
     }
     const album_rect = compute_album_rect_x(this.now_playing_album_index, opening_albums, this.shelf_geometry);
-    this.now_playing_marker.x = album_rect.left_x - this.scroll_x;
+    this.now_playing_marker.x = album_rect.left_x - this.drawn_scroll_x;
     this.now_playing_marker.y = SHELF_TOP_PADDING + this.shelf_geometry.cover_size;
     this.now_playing_marker.width = album_rect.width;
     this.now_playing_marker.height = NOW_PLAYING_MARKER_HEIGHT;
@@ -533,7 +548,7 @@ export class ShelfRenderer {
     const { spine_width, cover_size } = this.shelf_geometry;
     const open_amount = this.open_amounts_by_album_index.get(album_index) ?? 0;
     const album_rect = compute_album_rect_x(album_index, opening_albums, this.shelf_geometry);
-    const left_x = album_rect.left_x - this.scroll_x;
+    const left_x = album_rect.left_x - this.drawn_scroll_x;
 
     // A turning case: the spine narrows as the cover widens, and together they fill the album's width.
     const drawn_spine_width = spine_width * (1 - open_amount);

@@ -115,6 +115,28 @@ export function compute_scroll_x_range_with_centre_album_closed(
   return { minimum_scroll_x, maximum_scroll_x };
 }
 
+/**
+ * The scroll position the shelf is drawn at: `scroll_x`, limited so that the drawn shelf, open covers included,
+ * reaches each edge of the view with `edge_padding`. A shelf narrower than the view is drawn in its middle.
+ * Near an end, `scroll_x` can still bring an end album to the middle to open it, while the drawn shelf stays still.
+ */
+export function compute_drawn_scroll_x(
+  scroll_x: number,
+  album_count: number,
+  opening_albums: readonly OpeningAlbum[],
+  view_width: number,
+  shelf_geometry: ShelfGeometry,
+): number {
+  const first_album_rect = compute_album_rect_x(0, opening_albums, shelf_geometry);
+  const last_album_rect = compute_album_rect_x(Math.max(album_count - 1, 0), opening_albums, shelf_geometry);
+  const shelf_left_x = first_album_rect.left_x - shelf_geometry.edge_padding;
+  const shelf_right_x = last_album_rect.left_x + last_album_rect.width + shelf_geometry.edge_padding;
+  if (shelf_right_x - shelf_left_x <= view_width) {
+    return (shelf_left_x + shelf_right_x) / 2 - view_width / 2;
+  }
+  return Math.min(Math.max(scroll_x, shelf_left_x), shelf_right_x - view_width);
+}
+
 /** The album drawn at `content_x` among albums `first_album_index`…`last_album_index`, or -1 for none. */
 export function find_drawn_album_index_at(
   content_x: number,

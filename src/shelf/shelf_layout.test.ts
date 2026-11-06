@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   compute_album_rect_x,
   compute_closed_album_left_x,
+  compute_drawn_scroll_x,
   compute_scroll_x_centring_album,
   compute_scroll_x_range_with_centre_album_closed,
   compute_scroll_x_range_with_centre_album_open,
@@ -74,6 +75,20 @@ describe("centring and hit testing", () => {
       minimum_scroll_x: -50,
       maximum_scroll_x: -50,
     });
+  });
+
+  it("draws the shelf with its ends at the edges of the view, open covers included", () => {
+    // 50 closed spines run from 100 to 1100, so the drawn shelf runs from 90 to 1110.
+    expect(compute_drawn_scroll_x(500, 50, [], 400, shelf_geometry)).toBe(500);
+    expect(compute_drawn_scroll_x(-200, 50, [], 400, shelf_geometry)).toBe(90);
+    expect(compute_drawn_scroll_x(2_000, 50, [], 400, shelf_geometry)).toBe(710);
+    // An open first album grows 90 to the left, so the drawn shelf starts at 0.
+    expect(compute_drawn_scroll_x(-200, 50, [{ album_index: 0, open_amount: 1 }], 400, shelf_geometry)).toBe(0);
+  });
+
+  it("draws a shelf narrower than the view in its middle", () => {
+    // 5 closed spines run from 100 to 200; with padding, 90 to 210, whose middle is 150.
+    expect(compute_drawn_scroll_x(-500, 5, [], 400, shelf_geometry)).toBe(-50);
   });
 
   it("finds the drawn album under a point, including the wide open cover", () => {
