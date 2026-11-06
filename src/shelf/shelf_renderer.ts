@@ -265,8 +265,14 @@ export class ShelfRenderer {
     for (const [album_index, display] of this.displays_by_album_index) {
       this.release_display(album_index, display);
     }
-    this.scroll_target_x = compute_scroll_x_centring_album(0, this.application.screen.width, this.shelf_geometry);
+    // A new library starts with its middle album in the middle, closed.
+    this.scroll_target_x = compute_scroll_x_centring_album(
+      Math.floor(saved_albums.length / 2),
+      this.application.screen.width,
+      this.shelf_geometry,
+    );
     this.scroll_x = this.scroll_target_x;
+    this.set_centre_album_open(false);
   }
 
   /** Marks the album Spotify is playing, or clears the mark for null or an album not in the library. */
