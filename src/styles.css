@@ -339,7 +339,7 @@ code {
   --album_back_artist_font_size: calc(var(--album_spin_spine_label_font_size) * 1.15);
   --album_back_track_font_size: var(--album_spin_spine_label_font_size);
   /* The hover highlight reaches this far past the track number and the length. */
-  --album_back_track_highlight_inset: calc(var(--album_spin_spine_label_font_size) * 0.7);
+  --album_back_track_highlight_inset: var(--album_spin_spine_label_font_size);
   /* The track number column: wide enough for "24.", and the gap after it. */
   --album_back_track_number_width: 1.7em;
   --album_back_track_number_gap: 0.5em;
