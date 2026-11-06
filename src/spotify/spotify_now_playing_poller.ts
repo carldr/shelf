@@ -47,6 +47,11 @@ export class SpotifyNowPlayingPoller {
     this.poll_timer = setInterval(() => void this.poll_now(), NOW_PLAYING_POLL_INTERVAL_MS);
   }
 
+  /** The result of the last successful poll, or null before the first one. */
+  get last_now_playing_track(): SpotifyNowPlayingTrack | null {
+    return this.now_playing_track ?? null;
+  }
+
   /** Stops polling. Call when the window is hidden. */
   stop(): void {
     clearInterval(this.poll_timer);

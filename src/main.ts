@@ -57,6 +57,9 @@ document.addEventListener("keydown", (keyboard_event) => {
 
 void listen("shelf_window_shown", () => void show_shelf_window_contents());
 void listen("shelf_window_hidden", () => {
+  // The shelf is set now as the next showing will set it, so it does not change in view when the window opens.
+  const last_now_playing_track = connected_spotify_account?.now_playing_poller.last_now_playing_track ?? null;
+  shelf_view?.show_now_playing_album_at_once(last_now_playing_track?.spotify_album_id ?? null);
   shelf_view?.pause();
   connected_spotify_account?.now_playing_poller.stop();
 });

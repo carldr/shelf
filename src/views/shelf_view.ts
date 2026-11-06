@@ -33,6 +33,11 @@ export interface ShelfView {
   jump_to_album(spotify_album_id: string): boolean;
   /** Closes the centre album, so the shelf shows only spines. */
   close_centre_album(): void;
+  /**
+   * Without animation, puts the album in the middle and opens it, or closes the centre album for null
+   * or an album not in the library. Draws the result at once, also while the shelf is hidden.
+   */
+  show_now_playing_album_at_once(spotify_album_id: string | null): void;
   show_albums(sorted_saved_albums: readonly SavedAlbum[]): void;
   show_sync_status(sync_status_text: string): void;
   /**
@@ -192,6 +197,13 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
     close_centre_album() {
       album_spin_layer.put_album_back_at_once();
       shelf_renderer.close_centre_album();
+    },
+    show_now_playing_album_at_once(spotify_album_id) {
+      album_spin_layer.put_album_back_at_once();
+      if (!spotify_album_id || !shelf_renderer.jump_to_album(spotify_album_id)) {
+        shelf_renderer.close_centre_album_at_once();
+      }
+      shelf_renderer.draw_frame_now();
     },
     show_sync_status(sync_status_text) {
       if (!STRESS_TEST_ALBUM_COUNT) {

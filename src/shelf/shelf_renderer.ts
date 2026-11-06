@@ -344,6 +344,18 @@ export class ShelfRenderer {
     this.set_centre_album_open(false);
   }
 
+  /** Closes the centre album without the closing animation. */
+  close_centre_album_at_once(): void {
+    this.set_centre_album_open(false);
+    this.open_amounts_by_album_index.clear();
+  }
+
+  /** Lays out and draws one frame now, also while drawing is paused, so the next showing starts from it. */
+  draw_frame_now(): void {
+    this.lay_out_frame(0);
+    this.application.render();
+  }
+
   private set_centre_album_open(centre_album_open: boolean): void {
     if (centre_album_open !== this.centre_album_open) {
       this.centre_album_open = centre_album_open;
