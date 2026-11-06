@@ -138,8 +138,10 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
     on_album_click: options.on_album_click,
     on_centre_album_open_change: (centre_album_open) => (put_cd_away_button.disabled = !centre_album_open),
     on_settled_open_album_change: (settled_open_album) => album_spin_layer.set_settled_open_album(settled_open_album),
-    // A click or sideways scroll on the shelf turns a turned album back to its cover.
-    on_shelf_input_while_locked: () => album_spin_layer.turn_to_cover(),
+    // A click on the shelf puts a turned album back at once, so the click opens the spine it hit.
+    on_shelf_click_while_locked: () => album_spin_layer.put_album_back_at_once(),
+    // A sideways scroll turns a turned album back to its cover.
+    on_shelf_scroll_while_locked: () => album_spin_layer.turn_to_cover(),
     on_frame: STRESS_TEST_ALBUM_COUNT ? (shelf_frame_timing) => shelf_frame_timings.push(shelf_frame_timing) : undefined,
     stress_test_switches: STRESS_TEST_SWITCHES,
   });

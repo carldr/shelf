@@ -88,7 +88,8 @@ Shelf appears as an icon in the menu bar, not in the Dock.
 | Put CD away | Closes the open album, so the shelf shows only spines. |
 | Click ↻ on the open album | Turns the album round to show its track list. |
 | Click a track | Plays the album from that track in Spotify. |
-| Click the small cover on the back | Turns the album back to its cover. Scrolling the shelf or clicking it does this too. |
+| Click the small cover on the back | Turns the album back to its cover. Scrolling the shelf sideways does this too. |
+| Click another spine while an album shows its back | Puts that album back and opens the one you clicked. |
 | Esc, or click elsewhere | Closes the shelf. |
 | Refresh, Settings, Quit | The buttons at the top of the shelf. |
 | Start Shelf at login | A checkbox in Settings, on by default. Builds from `pnpm tauri dev` do not register at login. |
