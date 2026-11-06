@@ -488,6 +488,12 @@ export class ShelfRenderer {
         // Only sideways scrolling moves the shelf. Vertical scrolling over an album goes to the view.
         if (Math.abs(wheel_event.deltaX) <= Math.abs(wheel_event.deltaY)) {
           const scrolled_album_index = this.shelf_input_locked ? -1 : this.find_album_index_at_view_x(wheel_event.offsetX);
+          // Temporary [shelf_scroll] log, to find why vertical scrolls are lost.
+          console.info(
+            `[shelf_scroll] canvas deltaY=${wheel_event.deltaY} deltaMode=${wheel_event.deltaMode} locked=${this.shelf_input_locked} ` +
+              `album_index=${scrolled_album_index} focused=${this.focused_album_index} centre_open=${this.centre_album_open} ` +
+              `settled=${this.settled_open_album !== null}`,
+          );
           if (scrolled_album_index !== -1) {
             wheel_event.preventDefault();
             this.options.on_vertical_scroll_over_album(
