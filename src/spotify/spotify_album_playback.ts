@@ -61,13 +61,14 @@ async function fetch_spotify_playback_devices(
 }
 
 /**
- * Starts `spotify_album_uri` from its first track.
+ * Starts `spotify_album_uri` from `start_spotify_track_uri`, or from its first track when that is null.
  * Without a usable device, it starts the Spotify app, waits for this computer to appear as
  * a device, and then plays there.
  */
 export async function play_spotify_album(
   spotify_album_uri: string,
   dependencies: SpotifyAlbumPlaybackDependencies,
+  start_spotify_track_uri: string | null = null,
 ): Promise<void> {
   let device_id = choose_spotify_playback_device(
     await fetch_spotify_playback_devices(dependencies.spotify_web_api_client),
@@ -95,7 +96,11 @@ export async function play_spotify_album(
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ context_uri: spotify_album_uri }),
+      body: JSON.stringify(
+        start_spotify_track_uri
+          ? { context_uri: spotify_album_uri, offset: { uri: start_spotify_track_uri } }
+          : { context_uri: spotify_album_uri },
+      ),
     },
   );
 }

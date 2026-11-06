@@ -75,6 +75,17 @@ describe("play_spotify_album", () => {
     expect(launched_album_uris).toEqual([]);
   });
 
+  it("plays the album from the chosen track", async () => {
+    const { dependencies, sent_requests } = create_playback_dependencies([[this_computer]]);
+    await play_spotify_album("spotify:album:abc", dependencies, "spotify:track:t4");
+    expect(sent_requests).toEqual([
+      {
+        path: "/me/player/play?device_id=office",
+        body: { context_uri: "spotify:album:abc", offset: { uri: "spotify:track:t4" } },
+      },
+    ]);
+  });
+
   it("starts Spotify, waits for this computer to appear, then plays there", async () => {
     const { dependencies, sent_requests, launched_album_uris } = create_playback_dependencies([
       [speaker],
