@@ -78,16 +78,41 @@ export function compute_scroll_x_centring_album(
   return compute_closed_album_left_x(album_index, shelf_geometry) + shelf_geometry.spine_width / 2 - view_width / 2;
 }
 
-/** Scrolling stops when the first or the last album is in the middle of the view. */
-export function compute_scroll_x_range(
+export interface ScrollXRange {
+  minimum_scroll_x: number;
+  maximum_scroll_x: number;
+}
+
+/** With the centre album open, scrolling stops when the first or the last album is in the middle of the view. */
+export function compute_scroll_x_range_with_centre_album_open(
   album_count: number,
   view_width: number,
   shelf_geometry: ShelfGeometry,
-): { minimum_scroll_x: number; maximum_scroll_x: number } {
+): ScrollXRange {
   return {
     minimum_scroll_x: compute_scroll_x_centring_album(0, view_width, shelf_geometry),
     maximum_scroll_x: compute_scroll_x_centring_album(Math.max(album_count - 1, 0), view_width, shelf_geometry),
   };
+}
+
+/**
+ * With the centre album closed, scrolling stops when the first spine reaches the left edge or the last spine
+ * reaches the right edge, each with `edge_padding`. A shelf narrower than the view stays in its middle.
+ */
+export function compute_scroll_x_range_with_centre_album_closed(
+  album_count: number,
+  view_width: number,
+  shelf_geometry: ShelfGeometry,
+): ScrollXRange {
+  const first_spine_left_x = compute_closed_album_left_x(0, shelf_geometry);
+  const last_spine_right_x = compute_closed_album_left_x(album_count, shelf_geometry);
+  const minimum_scroll_x = first_spine_left_x - shelf_geometry.edge_padding;
+  const maximum_scroll_x = last_spine_right_x + shelf_geometry.edge_padding - view_width;
+  if (maximum_scroll_x < minimum_scroll_x) {
+    const centred_scroll_x = (first_spine_left_x + last_spine_right_x) / 2 - view_width / 2;
+    return { minimum_scroll_x: centred_scroll_x, maximum_scroll_x: centred_scroll_x };
+  }
+  return { minimum_scroll_x, maximum_scroll_x };
 }
 
 /** The album drawn at `content_x` among albums `first_album_index`…`last_album_index`, or -1 for none. */

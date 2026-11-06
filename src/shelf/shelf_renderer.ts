@@ -15,11 +15,13 @@ import { ShelfCoverThumbnailTextures } from "./shelf_cover_thumbnail_textures";
 import {
   compute_album_rect_x,
   compute_scroll_x_centring_album,
-  compute_scroll_x_range,
+  compute_scroll_x_range_with_centre_album_closed,
+  compute_scroll_x_range_with_centre_album_open,
   ease_toward,
   find_closed_album_index_at,
   find_drawn_album_index_at,
   type OpeningAlbum,
+  type ScrollXRange,
   type ShelfGeometry,
 } from "./shelf_layout";
 import { choose_spine_label_colour, fit_spine_label_texts, parse_hex_colour } from "./shelf_spine_label";
@@ -266,13 +268,9 @@ export class ShelfRenderer {
       this.release_display(album_index, display);
     }
     // A new library starts with its middle album in the middle, closed.
-    this.scroll_target_x = compute_scroll_x_centring_album(
-      Math.floor(saved_albums.length / 2),
-      this.application.screen.width,
-      this.shelf_geometry,
-    );
-    this.scroll_x = this.scroll_target_x;
     this.set_centre_album_open(false);
+    this.scroll_album_to_centre(Math.floor(saved_albums.length / 2));
+    this.scroll_x = this.scroll_target_x;
   }
 
   /** Marks the album Spotify is playing, or clears the mark for null or an album not in the library. */
@@ -288,12 +286,13 @@ export class ShelfRenderer {
     if (album_index === undefined) {
       return false;
     }
+    // Opening first widens the scroll range, so that an album near an end can reach the middle.
+    this.set_centre_album_open(true);
     this.scroll_album_to_centre(album_index);
     this.scroll_x = this.scroll_target_x;
     // Open it at once, so the shelf appears with the album already out.
     this.open_amounts_by_album_index.clear();
     this.open_amounts_by_album_index.set(album_index, 1);
-    this.set_centre_album_open(true);
     return true;
   }
 
@@ -310,6 +309,8 @@ export class ShelfRenderer {
   private set_centre_album_open(centre_album_open: boolean): void {
     if (centre_album_open !== this.centre_album_open) {
       this.centre_album_open = centre_album_open;
+      // Closing narrows the scroll range, so the shelf slides back if an end album was in the middle.
+      this.clamp_scroll_target();
       this.options.on_centre_album_open_change(centre_album_open);
     }
   }
@@ -324,7 +325,10 @@ export class ShelfRenderer {
     this.scroll_to(compute_scroll_x_centring_album(album_index, this.application.screen.width, this.shelf_geometry));
   }
 
-  get scroll_x_range(): { minimum_scroll_x: number; maximum_scroll_x: number } {
+  get scroll_x_range(): ScrollXRange {
+    const compute_scroll_x_range = this.centre_album_open
+      ? compute_scroll_x_range_with_centre_album_open
+      : compute_scroll_x_range_with_centre_album_closed;
     return compute_scroll_x_range(this.saved_albums.length, this.application.screen.width, this.shelf_geometry);
   }
 
@@ -374,12 +378,8 @@ export class ShelfRenderer {
       .fill({ color: 0xffffff, alpha: 0.18 })
       .rect(0, SHELF_TOP_PADDING + cover_size + 2, this.application.screen.width, SHELF_LEDGE_HEIGHT - 2)
       .fill({ color: 0x000000, alpha: 0.25 });
-    // Keep the same album in the middle at the new size.
-    this.scroll_target_x = compute_scroll_x_centring_album(
-      centred_album_index,
-      this.application.screen.width,
-      this.shelf_geometry,
-    );
+    // Keep the same album in the middle at the new size, within the scroll range.
+    this.scroll_album_to_centre(centred_album_index);
     this.scroll_x = this.scroll_target_x;
   }
 
@@ -405,8 +405,9 @@ export class ShelfRenderer {
         this.options.on_album_click(this.saved_albums[clicked_album_index]);
         return;
       }
-      this.scroll_album_to_centre(clicked_album_index);
+      // Opening first widens the scroll range, so that an album near an end can reach the middle.
       this.set_centre_album_open(true);
+      this.scroll_album_to_centre(clicked_album_index);
     });
     canvas.addEventListener(
       "wheel",

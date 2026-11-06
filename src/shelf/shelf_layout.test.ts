@@ -3,7 +3,8 @@ import {
   compute_album_rect_x,
   compute_closed_album_left_x,
   compute_scroll_x_centring_album,
-  compute_scroll_x_range,
+  compute_scroll_x_range_with_centre_album_closed,
+  compute_scroll_x_range_with_centre_album_open,
   ease_toward,
   find_closed_album_index_at,
   find_drawn_album_index_at,
@@ -52,10 +53,26 @@ describe("centring and hit testing", () => {
     expect(compute_scroll_x_centring_album(2, 400, shelf_geometry)).toBe(-50);
   });
 
-  it("limits scrolling to the first and last album in the middle", () => {
-    expect(compute_scroll_x_range(5, 400, shelf_geometry)).toEqual({
+  it("with the centre album open, limits scrolling to the first and last album in the middle", () => {
+    expect(compute_scroll_x_range_with_centre_album_open(5, 400, shelf_geometry)).toEqual({
       minimum_scroll_x: compute_scroll_x_centring_album(0, 400, shelf_geometry),
       maximum_scroll_x: compute_scroll_x_centring_album(4, 400, shelf_geometry),
+    });
+  });
+
+  it("with the centre album closed, limits scrolling to the spines filling the view", () => {
+    // 50 spines run from 100 to 1100. The first spine sits 10 from the left edge, the last 10 from the right edge.
+    expect(compute_scroll_x_range_with_centre_album_closed(50, 400, shelf_geometry)).toEqual({
+      minimum_scroll_x: 90,
+      maximum_scroll_x: 710,
+    });
+  });
+
+  it("with the centre album closed, keeps a shelf narrower than the view in its middle", () => {
+    // 5 spines run from 100 to 200, so their middle, 150, sits at the middle of the view, 200.
+    expect(compute_scroll_x_range_with_centre_album_closed(5, 400, shelf_geometry)).toEqual({
+      minimum_scroll_x: -50,
+      maximum_scroll_x: -50,
     });
   });
 
