@@ -15,7 +15,7 @@ const DEMO_ARTIST_SECOND_WORDS = [
   "Harbours", "Satellites", "Foxes", "Engines", "Lanterns", "Parades", "Orchards", "Signals", "Pilots",
   "Comets", "Ferries", "Gardens", "Arcades", "Rivers", "Choirs", "Machines", "Weather", "Kites",
 ];
-const DEMO_ALBUM_NAME_WORDS = [
+export const DEMO_ALBUM_NAME_WORDS = [
   "Afterglow", "Low Tide", "Night Bus", "Small Hours", "Overcast", "Long Division", "Paper Moon",
   "Northbound", "Slow Motion", "Static Bloom", "Open Water", "Last Light", "Second Summer",
   "Coastline", "Weekend Radio", "Glasshouse", "Fireworks", "Empty Rooms", "Halflife", "Tangerine",
@@ -23,7 +23,7 @@ const DEMO_ALBUM_NAME_WORDS = [
 ];
 
 /** Mulberry32: a small seeded generator, so the demo library is the same on every run. */
-function create_seeded_random(seed: number): () => number {
+export function create_seeded_random(seed: number): () => number {
   let state = seed >>> 0;
   return () => {
     state = (state + 0x6d2b79f5) >>> 0;
@@ -34,7 +34,7 @@ function create_seeded_random(seed: number): () => number {
   };
 }
 
-function pick<Item>(items: readonly Item[], random: () => number): Item {
+export function pick<Item>(items: readonly Item[], random: () => number): Item {
   return items[Math.floor(random() * items.length)];
 }
 
