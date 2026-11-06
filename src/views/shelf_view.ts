@@ -124,13 +124,7 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
    * A scroll down over a spine opens that album, as a click does. Each swipe acts once.
    */
   const handle_vertical_scroll_over_album = (delta_y: number, saved_album: SavedAlbum, album_is_open: boolean) => {
-    const may_act = vertical_scroll_gesture_gate.may_act(delta_y);
-    // Temporary [shelf_scroll] log, to find why vertical scrolls are lost.
-    console.info(
-      `[shelf_scroll] decide deltaY=${delta_y} album=${saved_album.album_name} open=${album_is_open} ` +
-        `may_act=${may_act} can_turn_to_back=${album_spin_layer.can_turn_to_back()}`,
-    );
-    if (!may_act) {
+    if (!vertical_scroll_gesture_gate.may_act(delta_y)) {
       return;
     }
     if (album_is_open && delta_y > 0 && album_spin_layer.can_turn_to_back()) {

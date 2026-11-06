@@ -219,11 +219,6 @@ export class ShelfAlbumSpinLayer {
     spin_stage.addEventListener(
       "wheel",
       (wheel_event) => {
-        // Temporary [shelf_scroll] log, to find why vertical scrolls are lost.
-        console.info(
-          `[shelf_scroll] case deltaX=${wheel_event.deltaX} deltaY=${wheel_event.deltaY} current=${spin_stage === this.spin_stage} ` +
-            `state=${this.album_spin_state} target=${(wheel_event.target as HTMLElement).className}`,
-        );
         // A case put back on the shelf ignores the scrolls that still reach it.
         if (spin_stage !== this.spin_stage) {
           return;
@@ -246,9 +241,7 @@ export class ShelfAlbumSpinLayer {
         }
         wheel_event.preventDefault();
         const vertical_scroll_gesture_gate = this.options.vertical_scroll_gesture_gate;
-        const may_act = vertical_scroll_gesture_gate.may_act(wheel_event.deltaY);
-        console.info(`[shelf_scroll] case decide deltaY=${wheel_event.deltaY} may_act=${may_act}`);
-        if (may_act && wheel_event.deltaY < 0) {
+        if (vertical_scroll_gesture_gate.may_act(wheel_event.deltaY) && wheel_event.deltaY < 0) {
           vertical_scroll_gesture_gate.mark_acted();
           this.turn_to_cover();
         }
