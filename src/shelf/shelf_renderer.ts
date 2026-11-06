@@ -14,6 +14,7 @@ import { ShelfCoverTextureCache } from "./shelf_cover_texture_cache";
 import { ShelfCoverThumbnailTextures } from "./shelf_cover_thumbnail_textures";
 import {
   compute_album_rect_x,
+  compute_closed_album_left_x,
   compute_drawn_scroll_x,
   compute_scroll_x_centring_album,
   compute_scroll_x_range_with_centre_album_closed,
@@ -40,10 +41,10 @@ const SPINE_LABEL_PADDING_ALONG_SPINE = 10;
 const SPINE_LABEL_GAP_TO_FONT_SIZE_RATIO = 0.6;
 
 /** The hinge caps at each end of a jewel case, as a share of its height. */
-const JEWEL_CASE_CAP_HEIGHT_RATIO = 0.035;
+export const JEWEL_CASE_CAP_HEIGHT_RATIO = 0.035;
 /** The clear plastic rail on each side of the insert, as a share of the spine width. */
 const JEWEL_CASE_RAIL_WIDTH_RATIO = 0.06;
-const JEWEL_CASE_BACK_COLOUR = 0x1c1c1f;
+export const JEWEL_CASE_BACK_COLOUR = 0x1c1c1f;
 
 /** Spotify green. */
 const NOW_PLAYING_MARKER_COLOUR = 0x1ed760;
@@ -78,10 +79,24 @@ export interface ShelfRendererOptions {
   on_album_click: (saved_album: SavedAlbum) => void;
   /** Receives true when the centre album opens, and false when it closes. */
   on_centre_album_open_change: (centre_album_open: boolean) => void;
+  /** Receives the open album once it is fully open and the shelf is still, and null when that ends. */
+  on_settled_open_album_change: (settled_open_album: SettledOpenAlbum | null) => void;
+  /** Receives each click and sideways scroll that `set_shelf_input_locked` stopped. */
+  on_shelf_input_while_locked: () => void;
   /** Receives the duration of each frame, for the performance overlay. */
   on_frame?: (shelf_frame_timing: ShelfFrameTiming) => void;
   /** Dev-only switches that leave out parts of the drawing, to find what limits the frame rate. */
   stress_test_switches?: { without_covers: boolean; without_jewel_case: boolean };
+}
+
+/** The fully open centre album, and where its cover sits in the view, in CSS pixels. */
+export interface SettledOpenAlbum {
+  saved_album: SavedAlbum;
+  cover_left_x: number;
+  cover_top_y: number;
+  cover_size: number;
+  spine_width: number;
+  spine_label_font_size: number;
 }
 
 export interface ShelfFrameTiming {
@@ -200,6 +215,10 @@ export class ShelfRenderer {
   private focused_album_index = -1;
   /** False while the centre album stays closed, so the shelf shows only spines. */
   private centre_album_open = false;
+  private settled_open_album: SettledOpenAlbum | null = null;
+  /** The album that another layer draws in its place, or -1. */
+  private hidden_album_index = -1;
+  private shelf_input_locked = false;
   private layout_start_ms = 0;
   private layout_end_ms = 0;
   /** The last frame's layout, for hit testing clicks against what is on screen. */
@@ -305,6 +324,18 @@ export class ShelfRenderer {
     this.set_centre_album_open(true);
   }
 
+  /** Stops drawing the album, while another layer draws it in its place. Null draws every album again. */
+  set_hidden_album(spotify_album_id: string | null): void {
+    this.hidden_album_index = spotify_album_id
+      ? (this.album_indexes_by_spotify_album_id.get(spotify_album_id) ?? -1)
+      : -1;
+  }
+
+  /** While locked, clicks and sideways scrolls do not move the shelf, and go to `on_shelf_input_while_locked`. */
+  set_shelf_input_locked(shelf_input_locked: boolean): void {
+    this.shelf_input_locked = shelf_input_locked;
+  }
+
   /** Closes the centre album, so the shelf shows only spines until an album is clicked. */
   close_centre_album(): void {
     this.set_centre_album_open(false);
@@ -395,6 +426,10 @@ export class ShelfRenderer {
   private listen_to_click_and_wheel(): void {
     const canvas = this.application.canvas;
     canvas.addEventListener("click", (click_event) => {
+      if (this.shelf_input_locked) {
+        this.options.on_shelf_input_while_locked();
+        return;
+      }
       const clicked_album_index = find_drawn_album_index_at(
         this.drawn_scroll_x + click_event.offsetX,
         this.drawn_album_index_range.first_album_index,
@@ -421,6 +456,10 @@ export class ShelfRenderer {
           return;
         }
         wheel_event.preventDefault();
+        if (this.shelf_input_locked) {
+          this.options.on_shelf_input_while_locked();
+          return;
+        }
         const line_scale = wheel_event.deltaMode === WheelEvent.DOM_DELTA_LINE ? WHEEL_LINE_HEIGHT_PX : 1;
         this.scroll_to(this.scroll_target_x + wheel_event.deltaX * line_scale);
         // Trackpad momentum arrives as more wheel events, so snap only once they stop.
@@ -504,10 +543,51 @@ export class ShelfRenderer {
     for (let album_index = first_visible_index; album_index <= last_visible_index; album_index += 1) {
       const display = this.displays_by_album_index.get(album_index) ?? this.acquire_display(album_index);
       this.position_display(display, album_index, opening_albums);
+      display.container.visible = album_index !== this.hidden_album_index;
     }
     this.drawn_opening_albums = opening_albums;
     this.drawn_album_index_range = { first_album_index: first_visible_index, last_album_index: last_visible_index };
     this.position_now_playing_marker(opening_albums);
+    this.update_settled_open_album(opening_albums);
+  }
+
+  /** Reports the centre album once it is fully open and the shelf has stopped moving. */
+  private update_settled_open_album(opening_albums: OpeningAlbum[]): void {
+    const open_amount = this.open_amounts_by_album_index.get(this.focused_album_index) ?? 0;
+    const album_settled =
+      this.centre_album_open &&
+      open_amount > 0.999 &&
+      opening_albums.length === 1 &&
+      this.scroll_x === this.scroll_target_x;
+    const { cover_size, spine_width } = this.shelf_geometry;
+    const settled_open_album: SettledOpenAlbum | null = album_settled
+      ? {
+          saved_album: this.saved_albums[this.focused_album_index],
+          // Placed as fully open and rounded, so the last fraction of the opening does not report a new position each frame.
+          cover_left_x: Math.round(
+            compute_closed_album_left_x(this.focused_album_index, this.shelf_geometry) +
+              spine_width / 2 -
+              cover_size / 2 -
+              this.drawn_scroll_x,
+          ),
+          cover_top_y: SHELF_TOP_PADDING,
+          cover_size,
+          spine_width,
+          spine_label_font_size: this.spine_label_font_size,
+        }
+      : null;
+    const previous = this.settled_open_album;
+    const unchanged =
+      previous === settled_open_album ||
+      (previous !== null &&
+        settled_open_album !== null &&
+        previous.saved_album === settled_open_album.saved_album &&
+        previous.cover_left_x === settled_open_album.cover_left_x &&
+        previous.cover_size === settled_open_album.cover_size);
+    if (!unchanged) {
+      this.settled_open_album = settled_open_album;
+      this.options.on_settled_open_album_change(settled_open_album);
+    }
   }
 
   private position_now_playing_marker(opening_albums: OpeningAlbum[]): void {

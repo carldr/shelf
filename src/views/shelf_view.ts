@@ -1,5 +1,7 @@
+import type { AlbumTrack } from "../library/album_tracks";
 import type { SavedAlbum } from "../library/saved_album";
 import { SAVED_ALBUM_SORT_ORDER_LABELS, type SavedAlbumSortOrder } from "../library/saved_album_sort_order";
+import { ShelfAlbumSpinLayer } from "../shelf/shelf_album_spin_layer";
 import { ShelfRenderer, type ShelfFrameTiming } from "../shelf/shelf_renderer";
 
 export interface ShelfViewOptions {
@@ -9,6 +11,9 @@ export interface ShelfViewOptions {
   on_open_settings: () => void;
   on_quit: () => void;
   on_album_click: (saved_album: SavedAlbum) => void;
+  /** The album's tracks from Spotify, or generated ones in demo mode. */
+  load_album_tracks: (saved_album: SavedAlbum) => Promise<AlbumTrack[]>;
+  on_track_click: (saved_album: SavedAlbum, album_track: AlbumTrack) => void;
   /** Cached Spotify covers, or generated covers in demo mode. */
   load_cover_bitmap: (saved_album: SavedAlbum, size_px: number) => Promise<ImageBitmap | null>;
   /** Cached Spotify cover thumbnails, or generated ones in demo mode. */
@@ -22,6 +27,8 @@ export interface ShelfView {
   /** Shows a short message over the shelf, such as a playback error. */
   show_message(message_text: string): void;
   set_now_playing_album(spotify_album_id: string | null): void;
+  /** Marks the playing track on the back of a turned album. Null clears the mark. */
+  set_now_playing_track(spotify_track_id: string | null): void;
   /** Puts the album in the middle, open. Returns false if it is not in the library. */
   jump_to_album(spotify_album_id: string): boolean;
   /** Closes the centre album, so the shelf shows only spines. */
@@ -104,10 +111,23 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
   let sync_in_progress = false;
   let window_shown = true;
 
+  const canvas_host_element = container.querySelector<HTMLElement>(".shelf_view_canvas_host")!;
+  const album_spin_layer = new ShelfAlbumSpinLayer({
+    host_element: canvas_host_element,
+    load_cover_bitmap: options.load_cover_bitmap,
+    load_album_tracks: options.load_album_tracks,
+    on_track_click: options.on_track_click,
+    // While the album turns or shows its back, the layer draws it and the shelf stays still.
+    on_spinning_album_change: (spinning_album) => {
+      shelf_renderer.set_hidden_album(spinning_album?.spotify_album_id ?? null);
+      shelf_renderer.set_shelf_input_locked(spinning_album !== null);
+    },
+  });
+
   const shelf_frame_timings: ShelfFrameTiming[] = [];
   let cover_load_count = 0;
   const shelf_renderer = await ShelfRenderer.create({
-    host_element: container.querySelector(".shelf_view_canvas_host")!,
+    host_element: canvas_host_element,
     load_cover_bitmap: STRESS_TEST_ALBUM_COUNT
       ? (saved_album, size_px) => {
           cover_load_count += 1;
@@ -117,11 +137,17 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
     load_cover_thumbnail_bitmap: options.load_cover_thumbnail_bitmap,
     on_album_click: options.on_album_click,
     on_centre_album_open_change: (centre_album_open) => (put_cd_away_button.disabled = !centre_album_open),
+    on_settled_open_album_change: (settled_open_album) => album_spin_layer.set_settled_open_album(settled_open_album),
+    // A click or sideways scroll on the shelf turns a turned album back to its cover.
+    on_shelf_input_while_locked: () => album_spin_layer.turn_to_cover(),
     on_frame: STRESS_TEST_ALBUM_COUNT ? (shelf_frame_timing) => shelf_frame_timings.push(shelf_frame_timing) : undefined,
     stress_test_switches: STRESS_TEST_SWITCHES,
   });
 
-  put_cd_away_button.addEventListener("click", () => shelf_renderer.close_centre_album());
+  put_cd_away_button.addEventListener("click", () => {
+    album_spin_layer.put_album_back_at_once();
+    shelf_renderer.close_centre_album();
+  });
 
   if (STRESS_TEST_ALBUM_COUNT) {
     run_stress_test_sweep(
@@ -144,6 +170,7 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
         ? repeat_albums_to_count(sorted_saved_albums, STRESS_TEST_ALBUM_COUNT)
         : sorted_saved_albums;
       album_count_element.textContent = `${shown_albums.length} albums`;
+      album_spin_layer.put_album_back_at_once();
       shelf_renderer.set_albums(shown_albums);
       if (STRESS_TEST_ALBUM_COUNT) {
         // The sweep measures the shelf with an album opening in the middle, as a user sees it while scrolling.
@@ -157,8 +184,15 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
       message_timer = setTimeout(() => (message_element.hidden = true), SHELF_MESSAGE_DURATION_MS);
     },
     set_now_playing_album: (spotify_album_id) => shelf_renderer.set_now_playing_album(spotify_album_id),
-    jump_to_album: (spotify_album_id) => shelf_renderer.jump_to_album(spotify_album_id),
-    close_centre_album: () => shelf_renderer.close_centre_album(),
+    set_now_playing_track: (spotify_track_id) => album_spin_layer.set_now_playing_track(spotify_track_id),
+    jump_to_album(spotify_album_id) {
+      album_spin_layer.put_album_back_at_once();
+      return shelf_renderer.jump_to_album(spotify_album_id);
+    },
+    close_centre_album() {
+      album_spin_layer.put_album_back_at_once();
+      shelf_renderer.close_centre_album();
+    },
     show_sync_status(sync_status_text) {
       if (!STRESS_TEST_ALBUM_COUNT) {
         sync_status_element.textContent = sync_status_text;
@@ -179,6 +213,8 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
     },
     pause() {
       window_shown = false;
+      // The album always shows its cover when the shelf opens again.
+      album_spin_layer.put_album_back_at_once();
       shelf_renderer.pause();
     },
     resume() {

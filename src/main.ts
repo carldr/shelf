@@ -4,6 +4,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { hostname } from "@tauri-apps/plugin-os";
 import { load_app_settings, save_app_settings, type AppSettings } from "./app_settings_store";
 import { draw_demo_album_cover_bitmap } from "./demo/demo_album_cover";
+import { generate_demo_album_tracks } from "./demo/demo_album_tracks";
 import { generate_demo_saved_albums } from "./demo/demo_saved_albums";
 import { apply_start_at_login_setting } from "./start_at_login";
 import {
@@ -12,6 +13,7 @@ import {
   load_cached_album_cover_thumbnail_bitmap,
   resolve_album_covers_directory_path,
 } from "./library/album_cover_cache";
+import { fetch_spotify_album_tracks, type AlbumTrack } from "./library/album_tracks";
 import type { SavedAlbum } from "./library/saved_album";
 import { sort_saved_albums } from "./library/saved_album_sort_order";
 import {
@@ -44,6 +46,8 @@ let saved_albums_library: SavedAlbumsLibrary | null = null;
 let shelf_view: ShelfView | null = null;
 let library_sync_in_progress = false;
 let library_sync_progress_text = "";
+/** Track lists read from Spotify, kept until Shelf quits, so a second spin of an album shows its tracks at once. */
+const album_tracks_by_spotify_album_id = new Map<string, Promise<AlbumTrack[]>>();
 
 document.addEventListener("keydown", (keyboard_event) => {
   if (keyboard_event.key === "Escape") {
@@ -77,7 +81,32 @@ async function show_shelf_window_contents(): Promise<void> {
   }
 }
 
-async function play_album_on_spotify(saved_album: SavedAlbum): Promise<void> {
+function load_album_tracks(saved_album: SavedAlbum): Promise<AlbumTrack[]> {
+  if (app_settings.demo_mode_enabled) {
+    return Promise.resolve(generate_demo_album_tracks(saved_album));
+  }
+  if (!connected_spotify_account) {
+    return Promise.reject(new Error("No Spotify account is connected."));
+  }
+  const cached_album_tracks = album_tracks_by_spotify_album_id.get(saved_album.spotify_album_id);
+  if (cached_album_tracks) {
+    return cached_album_tracks;
+  }
+  const album_tracks = fetch_spotify_album_tracks(
+    connected_spotify_account.spotify_web_api_client,
+    saved_album.spotify_album_id,
+  );
+  album_tracks_by_spotify_album_id.set(saved_album.spotify_album_id, album_tracks);
+  // A failed read is not kept, so the next spin tries again.
+  album_tracks.catch(() => album_tracks_by_spotify_album_id.delete(saved_album.spotify_album_id));
+  return album_tracks;
+}
+
+/** Plays the album from `start_album_track`, or from its first track when that is null. */
+async function play_album_on_spotify(
+  saved_album: SavedAlbum,
+  start_album_track: AlbumTrack | null = null,
+): Promise<void> {
   if (app_settings.demo_mode_enabled) {
     shelf_view?.show_message("This is the demo library. Connect Spotify in Settings to play your own albums.");
     return;
@@ -87,14 +116,18 @@ async function play_album_on_spotify(saved_album: SavedAlbum): Promise<void> {
   }
   const { spotify_web_api_client, now_playing_poller } = connected_spotify_account;
   try {
-    await play_spotify_album(saved_album.spotify_album_uri, {
-      spotify_web_api_client,
-      hostname: (await hostname()) ?? "",
-      // Hidden and in the background on macOS; elsewhere, or if that fails, through the spotify: URI.
-      launch_spotify_app: (spotify_album_uri) =>
-        invoke<void>("launch_spotify_app_in_background").catch(() => openUrl(spotify_album_uri)),
-      wait_milliseconds: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
-    });
+    await play_spotify_album(
+      saved_album.spotify_album_uri,
+      {
+        spotify_web_api_client,
+        hostname: (await hostname()) ?? "",
+        // Hidden and in the background on macOS; elsewhere, or if that fails, through the spotify: URI.
+        launch_spotify_app: (spotify_album_uri) =>
+          invoke<void>("launch_spotify_app_in_background").catch(() => openUrl(spotify_album_uri)),
+        wait_milliseconds: (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+      },
+      start_album_track?.spotify_track_uri ?? null,
+    );
     // Spotify takes a moment to report the new album.
     setTimeout(() => void now_playing_poller.poll_now(), 1_000);
   } catch (playback_error) {
@@ -146,10 +179,12 @@ async function connect_spotify_account(
     access_token_session,
     spotify_web_api_client,
     spotify_display_name: spotify_current_user.display_name ?? spotify_current_user.id,
-    // The green bar marks only an album that plays, not a paused one.
-    now_playing_poller: new SpotifyNowPlayingPoller(spotify_web_api_client, (now_playing_track) =>
-      shelf_view?.set_now_playing_album(now_playing_track?.is_playing ? now_playing_track.spotify_album_id : null),
-    ),
+    // The green bars mark only an album and a track that play, not paused ones.
+    now_playing_poller: new SpotifyNowPlayingPoller(spotify_web_api_client, (now_playing_track) => {
+      const playing_track = now_playing_track?.is_playing ? now_playing_track : null;
+      shelf_view?.set_now_playing_album(playing_track?.spotify_album_id ?? null);
+      shelf_view?.set_now_playing_track(playing_track?.spotify_track_id ?? null);
+    }),
   };
 }
 
@@ -230,6 +265,8 @@ async function show_library_view(): Promise<void> {
     on_open_settings: () => show_spotify_connection_view(null),
     on_quit: quit_shelf,
     on_album_click: (saved_album) => void play_album_on_spotify(saved_album),
+    load_album_tracks,
+    on_track_click: (saved_album, album_track) => void play_album_on_spotify(saved_album, album_track),
     load_cover_bitmap: (saved_album, size_px) =>
       app_settings.demo_mode_enabled
         ? draw_demo_album_cover_bitmap(saved_album, size_px)

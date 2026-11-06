@@ -232,9 +232,10 @@ code {
   font-variant-numeric: tabular-nums;
 }
 
+/* Above the turned album, so a playback error from a track click shows. */
 .shelf_view_message {
   position: absolute;
-  z-index: 1;
+  z-index: 2;
   left: 50%;
   bottom: 24px;
   transform: translateX(-50%);
@@ -258,4 +259,238 @@ code {
 .spotify_connection_view_start_at_login input {
   padding: 0;
   margin: 0;
+}
+
+/* The spin button in the top left corner of the open cover. */
+.shelf_album_spin_button {
+  position: absolute;
+  z-index: 1;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 16px;
+  line-height: 28px;
+  cursor: pointer;
+}
+
+.shelf_album_spin_button:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+/*
+ * The turning album: a box as deep as the spine. The front face stays where the shelf drew the cover,
+ * and the box turns about its own middle, so the spine passes the viewer half way through the turn.
+ */
+.shelf_album_spin_stage {
+  position: absolute;
+  z-index: 1;
+  width: var(--album_spin_cover_size);
+  height: var(--album_spin_cover_size);
+  perspective: calc(var(--album_spin_cover_size) * 4);
+}
+
+.shelf_album_spin_box {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: translateZ(calc(var(--album_spin_depth) / -2)) rotateY(0deg);
+  transition: transform var(--album_spin_duration) ease-in-out;
+}
+
+.shelf_album_spin_box.shelf_album_spin_box_turned {
+  transform: translateZ(calc(var(--album_spin_depth) / -2)) rotateY(180deg);
+}
+
+.shelf_album_spin_face {
+  position: absolute;
+  top: 0;
+  height: var(--album_spin_cover_size);
+  box-sizing: border-box;
+  backface-visibility: hidden;
+  overflow: hidden;
+}
+
+.shelf_album_spin_front_face,
+.shelf_album_spin_back_face {
+  left: 0;
+  width: var(--album_spin_cover_size);
+}
+
+.shelf_album_spin_front_face {
+  background: var(--album_spin_spine_colour);
+  transform: translateZ(calc(var(--album_spin_depth) / 2));
+}
+
+.shelf_album_spin_back_face {
+  display: flex;
+  flex-direction: column;
+  background: var(--album_spin_spine_colour);
+  color: var(--album_spin_label_colour);
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  transform: rotateY(180deg) translateZ(calc(var(--album_spin_depth) / 2));
+}
+
+.shelf_album_spin_spine_face,
+.shelf_album_spin_edge_face {
+  left: calc((var(--album_spin_cover_size) - var(--album_spin_depth)) / 2);
+  width: var(--album_spin_depth);
+}
+
+/* The spine passes the viewer during the turn. It matches the spines on the shelf: hinge caps and a printed label. */
+.shelf_album_spin_spine_face {
+  display: flex;
+  justify-content: center;
+  padding: calc(var(--album_spin_cap_height) + 8px) 0;
+  background: var(--album_spin_spine_colour);
+  border-top: var(--album_spin_cap_height) solid var(--album_spin_case_colour);
+  border-bottom: var(--album_spin_cap_height) solid var(--album_spin_case_colour);
+  transform: rotateY(-90deg) translateZ(calc(var(--album_spin_cover_size) / 2));
+}
+
+.shelf_album_spin_spine_label {
+  writing-mode: vertical-rl;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--album_spin_label_colour);
+  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+  font-size: var(--album_spin_spine_label_font_size);
+}
+
+.shelf_album_spin_spine_artist {
+  font-weight: 700;
+  margin-bottom: 0.6em;
+}
+
+.shelf_album_spin_spine_album_name {
+  opacity: 0.85;
+}
+
+/* The opening edge of the case, opposite the spine. */
+.shelf_album_spin_edge_face {
+  background: var(--album_spin_case_colour);
+  transform: rotateY(90deg) translateZ(calc(var(--album_spin_cover_size) / 2));
+}
+
+.shelf_album_spin_cover_canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.shelf_album_back_header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+}
+
+.shelf_album_back_thumbnail {
+  flex: none;
+  padding: 0;
+  border: none;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+  background: none;
+  cursor: pointer;
+}
+
+.shelf_album_back_titles {
+  min-width: 0;
+}
+
+.shelf_album_back_artist,
+.shelf_album_back_album_name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+.shelf_album_back_artist {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.shelf_album_back_album_name {
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.shelf_album_back_track_list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border-top: 1px solid color-mix(in srgb, var(--album_spin_label_colour) 25%, transparent);
+}
+
+.shelf_album_back_track_list_message {
+  margin: 8px 2px;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.shelf_album_back_track_row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0 2px 0 8px;
+  border: none;
+  border-radius: 3px;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.shelf_album_back_track_row:hover {
+  background: color-mix(in srgb, var(--album_spin_label_colour) 14%, transparent);
+}
+
+.shelf_album_back_track_number {
+  flex: none;
+  min-width: 1.6em;
+  text-align: right;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+.shelf_album_back_track_name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shelf_album_back_track_duration {
+  flex: none;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The playing track: the green bar used under the playing album, and bold text. */
+.shelf_album_back_track_row_now_playing {
+  font-weight: 700;
+}
+
+.shelf_album_back_track_row_now_playing .shelf_album_back_track_number {
+  opacity: 1;
+}
+
+.shelf_album_back_track_row_now_playing::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 15%;
+  bottom: 15%;
+  width: 4px;
+  border-radius: 1px;
+  background: var(--shelf_accent_colour);
 }

@@ -86,12 +86,15 @@ Shelf appears as an icon in the menu bar, not in the Dock.
 | Click a spine | Brings that album to the middle and opens it. |
 | Click the open album | Plays it in Spotify. |
 | Put CD away | Closes the open album, so the shelf shows only spines. |
+| Click ↻ on the open album | Turns the album round to show its track list. |
+| Click a track | Plays the album from that track in Spotify. |
+| Click the small cover on the back | Turns the album back to its cover. Scrolling the shelf or clicking it does this too. |
 | Esc, or click elsewhere | Closes the shelf. |
 | Refresh, Settings, Quit | The buttons at the top of the shelf. |
 | Start Shelf at login | A checkbox in Settings, on by default. Builds from `pnpm tauri dev` do not register at login. |
 
 When the shelf opens, the album of Spotify's current track is open in the middle, playing or paused.
-A green bar on the ledge marks it while it plays.
+A green bar on the ledge marks it while it plays. On the back of the album, a green bar marks the playing track.
 If that album is not on the shelf, or nothing plays, the shelf stays where you left it with no album open.
 
 ## How it works
@@ -132,17 +135,20 @@ src/                                   TypeScript frontend
     saved_albums_sync.ts               Fetches the library and caches covers
     saved_albums_library_store.ts      albums.json and its 6-hour staleness
     album_cover_cache.ts               Cover downloads and loading
+    album_tracks.ts                    Track lists from GET /albums/{id}/tracks
     saved_album_sort_order.ts          Recently added, artist A–Z, album A–Z, release year
   shelf/
     shelf_layout.ts                    Spine and cover positions, scrolling, hit testing
     shelf_renderer.ts                  PixiJS drawing of the jewel cases
+    shelf_album_spin_layer.ts          The open album turned round in 3D HTML, with its track list
+    album_back_track_list_layout.ts    Track row height for 15, 18 and more tracks
     shelf_spine_label.ts               Spine label fitting and contrast
     shelf_cover_texture_cache.ts       Full cover textures, most recent first
     shelf_cover_thumbnail_textures.ts  Thumbnail textures for every album
   views/
     shelf_view.ts                      Toolbar and shelf
     spotify_connection_view.ts         First-run screen and Settings
-  demo/                                Generated demo library and covers
+  demo/                                Generated demo library, covers and track lists
 src-tauri/src/                         Rust
   tray_icon_and_window.rs              Tray icon, window placement and hiding, Quit
   spotify_app_launcher.rs              Starts Spotify hidden when no device is available
