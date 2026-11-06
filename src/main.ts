@@ -68,9 +68,9 @@ async function show_shelf_window_contents(): Promise<void> {
     return;
   }
   now_playing_poller.start();
-  const now_playing_album_id = await now_playing_poller.poll_now();
-  if (now_playing_album_id) {
-    shelf_view.jump_to_album(now_playing_album_id);
+  const now_playing_album = await now_playing_poller.poll_now();
+  if (now_playing_album) {
+    shelf_view.jump_to_album(now_playing_album.spotify_album_id);
   }
 }
 
@@ -143,8 +143,9 @@ async function connect_spotify_account(
     access_token_session,
     spotify_web_api_client,
     spotify_display_name: spotify_current_user.display_name ?? spotify_current_user.id,
-    now_playing_poller: new SpotifyNowPlayingPoller(spotify_web_api_client, (now_playing_album_id) =>
-      shelf_view?.set_now_playing_album(now_playing_album_id),
+    // The green bar marks only an album that plays, not a paused one.
+    now_playing_poller: new SpotifyNowPlayingPoller(spotify_web_api_client, (now_playing_album) =>
+      shelf_view?.set_now_playing_album(now_playing_album?.is_playing ? now_playing_album.spotify_album_id : null),
     ),
   };
 }
