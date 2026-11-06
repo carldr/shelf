@@ -301,6 +301,12 @@ code {
   perspective: calc(var(--album_spin_cover_size) * 4);
 }
 
+/* A case put back on the shelf stays in the page until the next spin, hidden and out of reach of the pointer. */
+.shelf_album_spin_stage_retired {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .shelf_album_spin_box {
   position: absolute;
   inset: 0;

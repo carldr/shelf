@@ -50,6 +50,12 @@ export class ShelfAlbumSpinLayer {
   private settled_open_album: SettledOpenAlbum | null = null;
   private album_spin_state: AlbumSpinState = "showing_cover";
   private spin_stage: HTMLElement | null = null;
+  /**
+   * The last case put back on the shelf, hidden but still in the page. WebKit ties a scroll gesture to the
+   * scrollable element under the pointer, here the track list. Removing that element mid-gesture leaves later
+   * vertical scrolls going nowhere, so the case is removed only when the next spin builds a new one.
+   */
+  private retired_spin_stage: HTMLElement | null = null;
   private spin_box: HTMLElement | null = null;
   private spin_timer: ReturnType<typeof setTimeout> | undefined;
   private now_playing_spotify_track_id: string | null = null;
@@ -128,7 +134,12 @@ export class ShelfAlbumSpinLayer {
     if (!this.spin_stage) {
       return;
     }
-    this.spin_stage.remove();
+    this.retired_spin_stage?.remove();
+    this.spin_stage.classList.add("shelf_album_spin_stage_retired");
+    for (const animation of this.spin_stage.getAnimations({ subtree: true })) {
+      animation.cancel();
+    }
+    this.retired_spin_stage = this.spin_stage;
     this.spin_stage = null;
     this.spin_box = null;
     this.track_rows_by_spotify_track_id.clear();
@@ -208,6 +219,10 @@ export class ShelfAlbumSpinLayer {
     spin_stage.addEventListener(
       "wheel",
       (wheel_event) => {
+        // A case put back on the shelf ignores the scrolls that still reach it.
+        if (spin_stage !== this.spin_stage) {
+          return;
+        }
         // A sideways scroll puts the album back at once, so the scrolls after it move the shelf.
         if (Math.abs(wheel_event.deltaX) > Math.abs(wheel_event.deltaY)) {
           wheel_event.preventDefault();
@@ -301,6 +316,8 @@ export class ShelfAlbumSpinLayer {
 
     spin_box.append(front_face, spine_face, edge_face, back_face);
     spin_stage.appendChild(spin_box);
+    this.retired_spin_stage?.remove();
+    this.retired_spin_stage = null;
     this.options.host_element.appendChild(spin_stage);
     this.spin_stage = spin_stage;
     this.spin_box = spin_box;
