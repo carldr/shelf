@@ -140,8 +140,10 @@ code {
   height: 100%;
 }
 
+/* Three columns: the outer two share the width equally, so Put CD away sits in the exact middle. */
 .shelf_view_toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 8px;
   padding: 6px 14px 0;
@@ -150,12 +152,27 @@ code {
   font-size: 12px;
 }
 
+.shelf_view_toolbar_left_group,
+.shelf_view_toolbar_right_group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.shelf_view_toolbar_right_group {
+  justify-content: flex-end;
+}
+
 .shelf_view_album_count {
   font-weight: 600;
 }
 
 .shelf_view_sync_status {
-  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: var(--shelf_muted_text_colour);
 }
 

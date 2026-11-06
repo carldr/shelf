@@ -57,13 +57,17 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
   container.innerHTML = `
     <section class="shelf_view">
       <header class="shelf_view_toolbar">
-        <span class="shelf_view_album_count"></span>
-        <span class="shelf_view_sync_status" role="status"></span>
-        <select class="shelf_view_sort_order" aria-label="Sort order"></select>
+        <div class="shelf_view_toolbar_left_group">
+          <span class="shelf_view_album_count"></span>
+          <span class="shelf_view_sync_status" role="status"></span>
+        </div>
         <button type="button" class="shelf_view_put_cd_away_button" title="Close the open CD" disabled>Put CD away</button>
-        <button type="button" class="shelf_view_refresh_button" title="Refresh library">Refresh</button>
-        <button type="button" class="shelf_view_settings_button" title="Settings">Settings</button>
-        <button type="button" class="shelf_view_quit_button" title="Quit Shelf">Quit</button>
+        <div class="shelf_view_toolbar_right_group">
+          <select class="shelf_view_sort_order" aria-label="Sort order"></select>
+          <button type="button" class="shelf_view_refresh_button" title="Refresh library">Refresh</button>
+          <button type="button" class="shelf_view_settings_button" title="Settings">Settings</button>
+          <button type="button" class="shelf_view_quit_button" title="Quit Shelf">Quit</button>
+        </div>
       </header>
       <div class="shelf_view_canvas_host">
         <p class="shelf_view_message" role="alert" hidden></p>
