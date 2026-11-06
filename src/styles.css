@@ -500,7 +500,14 @@ code {
   text-overflow: ellipsis;
 }
 
-/* The playing track: a green play icon where the other names start, which moves the name in by the icon's width. */
+/*
+ * The playing track: its name in the Black weight, after a play icon in the label colour.
+ * The icon starts where the other names start, so it moves the name in by the icon's width.
+ */
+.shelf_album_back_track_row_now_playing .shelf_album_back_track_name {
+  font-weight: 900;
+}
+
 .shelf_album_back_track_row_now_playing .shelf_album_back_track_name::before {
   content: "";
   display: inline-block;
@@ -508,6 +515,6 @@ code {
   height: 0.72em;
   margin-right: 0.45em;
   vertical-align: -0.04em;
-  background: var(--shelf_accent_colour);
+  background: var(--album_spin_label_colour);
   clip-path: polygon(0 0, 100% 50%, 0 100%);
 }
