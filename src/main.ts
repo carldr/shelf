@@ -13,7 +13,7 @@ import {
   load_cached_album_cover_thumbnail_bitmap,
   resolve_album_covers_directory_path,
 } from "./library/album_cover_cache";
-import { fetch_spotify_album_tracks, type AlbumTrack } from "./library/album_tracks";
+import { fetch_spotify_album_tracks, type AlbumTrack, type AlbumTracksLoad } from "./library/album_tracks";
 import type { SavedAlbum } from "./library/saved_album";
 import { sort_saved_albums } from "./library/saved_album_sort_order";
 import {
@@ -46,8 +46,8 @@ let saved_albums_library: SavedAlbumsLibrary | null = null;
 let shelf_view: ShelfView | null = null;
 let library_sync_in_progress = false;
 let library_sync_progress_text = "";
-/** Track lists read from Spotify, kept until Shelf quits, so a second spin of an album shows its tracks at once. */
-const album_tracks_by_spotify_album_id = new Map<string, Promise<AlbumTrack[]>>();
+/** Tracks past those stored at sync, read from Spotify on a spin and kept until Shelf quits. */
+const remaining_album_tracks_by_spotify_album_id = new Map<string, Promise<AlbumTrack[]>>();
 
 document.addEventListener("keydown", (keyboard_event) => {
   if (keyboard_event.key === "Escape") {
@@ -117,29 +117,45 @@ async function show_shelf_window_contents(): Promise<void> {
   }
 }
 
-function load_album_tracks(saved_album: SavedAlbum): Promise<AlbumTrack[]> {
+/** The stored tracks to show at once, and a read of the rest from Spotify when the sync could not store them all. */
+function load_album_tracks(saved_album: SavedAlbum): AlbumTracksLoad {
   if (app_settings.demo_mode_enabled) {
-    return Promise.resolve(generate_demo_album_tracks(saved_album));
+    const demo_album_tracks = generate_demo_album_tracks(saved_album);
+    return {
+      stored_album_tracks: demo_album_tracks,
+      remaining_album_tracks: null,
+      album_track_count: demo_album_tracks.length,
+    };
   }
-  // The sync stores the tracks of albums up to 50 tracks long, so only longer albums are read now.
-  if (saved_album.album_tracks) {
-    return Promise.resolve(saved_album.album_tracks);
+  const stored_album_tracks = saved_album.album_tracks ?? [];
+  const album_track_count = saved_album.album_track_count ?? stored_album_tracks.length;
+  if (saved_album.album_tracks && stored_album_tracks.length >= album_track_count) {
+    return { stored_album_tracks, remaining_album_tracks: null, album_track_count };
   }
+  return {
+    stored_album_tracks,
+    remaining_album_tracks: read_remaining_album_tracks(saved_album, stored_album_tracks.length),
+    album_track_count,
+  };
+}
+
+/** Reads the album's tracks from `start_offset` on, once per album until Shelf quits. A failed read is tried again next time. */
+function read_remaining_album_tracks(saved_album: SavedAlbum, start_offset: number): Promise<AlbumTrack[]> {
   if (!connected_spotify_account) {
     return Promise.reject(new Error("No Spotify account is connected."));
   }
-  const cached_album_tracks = album_tracks_by_spotify_album_id.get(saved_album.spotify_album_id);
-  if (cached_album_tracks) {
-    return cached_album_tracks;
+  const cached_remaining_album_tracks = remaining_album_tracks_by_spotify_album_id.get(saved_album.spotify_album_id);
+  if (cached_remaining_album_tracks) {
+    return cached_remaining_album_tracks;
   }
-  const album_tracks = fetch_spotify_album_tracks(
+  const remaining_album_tracks = fetch_spotify_album_tracks(
     connected_spotify_account.spotify_web_api_client,
     saved_album.spotify_album_id,
+    start_offset,
   );
-  album_tracks_by_spotify_album_id.set(saved_album.spotify_album_id, album_tracks);
-  // A failed read is not kept, so the next spin tries again.
-  album_tracks.catch(() => album_tracks_by_spotify_album_id.delete(saved_album.spotify_album_id));
-  return album_tracks;
+  remaining_album_tracks_by_spotify_album_id.set(saved_album.spotify_album_id, remaining_album_tracks);
+  remaining_album_tracks.catch(() => remaining_album_tracks_by_spotify_album_id.delete(saved_album.spotify_album_id));
+  return remaining_album_tracks;
 }
 
 /** Plays the album from `start_album_track`, or from its first track when that is null. */

@@ -29,6 +29,7 @@ function create_saved_album(overrides: Partial<SavedAlbum>): SavedAlbum {
     cover_image_url: null,
     cover_dominant_colour: null,
     album_tracks: null,
+    album_track_count: null,
     ...overrides,
   };
 }
@@ -56,7 +57,7 @@ describe("convert_spotify_saved_album_item", () => {
     });
   });
 
-  it("keeps the album's tracks when the response holds all of them, and null when it does not", () => {
+  it("keeps the tracks that the response holds, and the album's full track count", () => {
     const spotify_track = { id: "t1", uri: "spotify:track:t1", name: "Opening", duration_ms: 187_000 };
     const complete_album = convert_spotify_saved_album_item(
       create_spotify_saved_album_item("a1", { tracks: { items: [spotify_track], next: null, total: 1 } }),
@@ -64,11 +65,15 @@ describe("convert_spotify_saved_album_item", () => {
     expect(complete_album.album_tracks).toEqual([
       { spotify_track_id: "t1", spotify_track_uri: "spotify:track:t1", track_name: "Opening", duration_ms: 187_000 },
     ]);
+    expect(complete_album.album_track_count).toBe(1);
     const long_album = convert_spotify_saved_album_item(
       create_spotify_saved_album_item("a2", { tracks: { items: [spotify_track], next: "https://next", total: 57 } }),
     );
-    expect(long_album.album_tracks).toBeNull();
-    expect(convert_spotify_saved_album_item(create_spotify_saved_album_item("a3")).album_tracks).toBeNull();
+    expect(long_album.album_tracks).toHaveLength(1);
+    expect(long_album.album_track_count).toBe(57);
+    const album_without_tracks = convert_spotify_saved_album_item(create_spotify_saved_album_item("a3"));
+    expect(album_without_tracks.album_tracks).toBeNull();
+    expect(album_without_tracks.album_track_count).toBeNull();
   });
 
   it("gives a null year for Spotify's 0000 release date and a null cover for no images", () => {

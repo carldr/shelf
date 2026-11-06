@@ -67,6 +67,7 @@ export function generate_demo_saved_albums(): SavedAlbum[] {
       cover_image_url: null,
       // Demo track lists are generated when an album turns, by generate_demo_album_tracks.
       album_tracks: null,
+      album_track_count: null,
       cover_dominant_colour: hsl_to_hex(Math.floor(random() * 360), 0.35 + random() * 0.5, 0.2 + random() * 0.55),
     };
   });

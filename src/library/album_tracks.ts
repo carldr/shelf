@@ -8,6 +8,18 @@ export interface AlbumTrack {
   duration_ms: number;
 }
 
+/**
+ * An album's tracks for the back of the album: the tracks stored at sync, shown at once,
+ * and a read of the rest when the sync could not store them all.
+ */
+export interface AlbumTracksLoad {
+  stored_album_tracks: AlbumTrack[];
+  /** The tracks after the stored ones, or null when the stored ones are all of them. */
+  remaining_album_tracks: Promise<AlbumTrack[]> | null;
+  /** Every track on the album, stored and remaining. */
+  album_track_count: number;
+}
+
 /** Development Mode apps get at most 10 items per page from GET /me/albums, so the track list uses the same size. */
 const ALBUM_TRACKS_PAGE_SIZE = 10;
 
@@ -35,14 +47,15 @@ export function convert_spotify_simplified_track(spotify_track: SpotifySimplifie
   };
 }
 
-/** Reads every page of GET /albums/{id}/tracks, following each page's `next` URL. */
+/** Reads the pages of GET /albums/{id}/tracks from track `start_offset` on, following each page's `next` URL. */
 export async function fetch_spotify_album_tracks(
   spotify_web_api_client: Pick<SpotifyWebApiClient, "get_json">,
   spotify_album_id: string,
+  start_offset = 0,
 ): Promise<AlbumTrack[]> {
   const album_tracks: AlbumTrack[] = [];
   let next_page_url: string | null =
-    `/albums/${encodeURIComponent(spotify_album_id)}/tracks?limit=${ALBUM_TRACKS_PAGE_SIZE}&offset=0`;
+    `/albums/${encodeURIComponent(spotify_album_id)}/tracks?limit=${ALBUM_TRACKS_PAGE_SIZE}&offset=${start_offset}`;
   while (next_page_url) {
     const album_tracks_page: SpotifyAlbumTracksPage = await spotify_web_api_client.get_json(next_page_url);
     album_tracks.push(...album_tracks_page.items.map(convert_spotify_simplified_track));

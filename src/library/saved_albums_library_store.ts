@@ -12,8 +12,9 @@ const SAVED_ALBUMS_LIBRARY_MAXIMUM_AGE_MS = 6 * 60 * 60 * 1000;
  * 3: covers are downloaded at 2000 px where the CDN has that size.
  * 4: each cover also has a 256 px thumbnail.
  * 5: each album holds its track list.
+ * 6: each album holds up to its first 50 tracks, and its full track count.
  */
-const SAVED_ALBUMS_LIBRARY_FORMAT_VERSION = 5;
+const SAVED_ALBUMS_LIBRARY_FORMAT_VERSION = 6;
 
 /** The contents of albums.json in the app data directory. */
 export interface SavedAlbumsLibrary {

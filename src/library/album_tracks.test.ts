@@ -22,6 +22,21 @@ describe("fetch_spotify_album_tracks", () => {
       { spotify_track_id: "t2", spotify_track_uri: "spotify:track:t2", track_name: "Closing", duration_ms: 240_000 },
     ]);
   });
+
+  it("starts at the given offset", async () => {
+    const requested_urls: string[] = [];
+    await fetch_spotify_album_tracks(
+      {
+        get_json: async <ResponseBody>(url: string) => {
+          requested_urls.push(url);
+          return { items: [], next: null, total: 57 } as ResponseBody;
+        },
+      },
+      "a1",
+      50,
+    );
+    expect(requested_urls).toEqual(["/albums/a1/tracks?limit=10&offset=50"]);
+  });
 });
 
 describe("format_album_track_duration", () => {

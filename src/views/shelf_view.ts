@@ -1,4 +1,4 @@
-import type { AlbumTrack } from "../library/album_tracks";
+import type { AlbumTrack, AlbumTracksLoad } from "../library/album_tracks";
 import type { SavedAlbum } from "../library/saved_album";
 import { SAVED_ALBUM_SORT_ORDER_LABELS, type SavedAlbumSortOrder } from "../library/saved_album_sort_order";
 import { ShelfAlbumSpinLayer } from "../shelf/shelf_album_spin_layer";
@@ -11,8 +11,8 @@ export interface ShelfViewOptions {
   on_open_settings: () => void;
   on_quit: () => void;
   on_album_click: (saved_album: SavedAlbum) => void;
-  /** The album's tracks from Spotify, or generated ones in demo mode. */
-  load_album_tracks: (saved_album: SavedAlbum) => Promise<AlbumTrack[]>;
+  /** The album's stored tracks and a read of the rest from Spotify, or generated tracks in demo mode. */
+  load_album_tracks: (saved_album: SavedAlbum) => AlbumTracksLoad;
   on_track_click: (saved_album: SavedAlbum, album_track: AlbumTrack) => void;
   /** Cached Spotify covers, or generated covers in demo mode. */
   load_cover_bitmap: (saved_album: SavedAlbum, size_px: number) => Promise<ImageBitmap | null>;

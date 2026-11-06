@@ -1,4 +1,4 @@
-import { format_album_track_duration, type AlbumTrack } from "../library/album_tracks";
+import { format_album_track_duration, type AlbumTrack, type AlbumTracksLoad } from "../library/album_tracks";
 import type { SavedAlbum } from "../library/saved_album";
 import { compute_album_back_track_row_layout } from "./album_back_track_list_layout";
 import { JEWEL_CASE_BACK_COLOUR, JEWEL_CASE_CAP_HEIGHT_RATIO, type SettledOpenAlbum } from "./shelf_renderer";
@@ -25,7 +25,7 @@ export interface ShelfAlbumSpinLayerOptions {
   host_element: HTMLElement;
   /** Produces the album's full cover at `size_px` square, or null when it has none. */
   load_cover_bitmap: (saved_album: SavedAlbum, size_px: number) => Promise<ImageBitmap | null>;
-  load_album_tracks: (saved_album: SavedAlbum) => Promise<AlbumTrack[]>;
+  load_album_tracks: (saved_album: SavedAlbum) => AlbumTracksLoad;
   on_track_click: (saved_album: SavedAlbum, album_track: AlbumTrack) => void;
   /**
    * Receives the album when the spin starts, and null when the album is back on the shelf.
@@ -131,7 +131,7 @@ export class ShelfAlbumSpinLayer {
       return;
     }
     const { saved_album, cover_size } = settled_open_album;
-    const album_tracks = this.options.load_album_tracks(saved_album);
+    const album_tracks_load = this.options.load_album_tracks(saved_album);
     // The cover is drawn before the shelf hides its own, so the swap does not show.
     const cover_bitmap = await this.options
       .load_cover_bitmap(saved_album, Math.round(cover_size * window.devicePixelRatio))
@@ -159,7 +159,7 @@ export class ShelfAlbumSpinLayer {
         this.start_album_name_scroll();
       }
     }, ALBUM_SPIN_DURATION_MS);
-    void this.show_album_tracks(settled_open_album, album_tracks);
+    void this.show_album_tracks(settled_open_album, album_tracks_load);
   }
 
   private build_spin_stage(settled_open_album: SettledOpenAlbum, cover_bitmap: ImageBitmap | null): void {
@@ -328,68 +328,85 @@ export class ShelfAlbumSpinLayer {
     );
   }
 
-  private async show_album_tracks(
-    settled_open_album: SettledOpenAlbum,
-    album_tracks_promise: Promise<AlbumTrack[]>,
-  ): Promise<void> {
+  /** Lists the stored tracks at once, then adds the remaining tracks below them when Spotify returns them. */
+  private async show_album_tracks(settled_open_album: SettledOpenAlbum, album_tracks_load: AlbumTracksLoad): Promise<void> {
     const spin_stage = this.spin_stage;
     const track_list = spin_stage?.querySelector<HTMLElement>(".shelf_album_back_track_list");
     if (!spin_stage || !track_list) {
       return;
     }
-    let album_tracks: AlbumTrack[];
-    try {
-      album_tracks = await album_tracks_promise;
-    } catch (load_error) {
-      console.warn("Shelf could not read the album's tracks", load_error);
-      if (this.spin_stage === spin_stage) {
-        track_list.querySelector(".shelf_album_back_track_list_message")!.textContent =
-          "Shelf could not read the tracks.";
-      }
-      return;
-    }
-    if (this.spin_stage !== spin_stage) {
-      return;
-    }
     // styles.css sets the list's height from the cover size, so it is measured here, not computed again.
+    // The layout uses the full track count, so rows added later do not change it.
     const { row_height, type_scale } = compute_album_back_track_row_layout(
-      album_tracks.length,
+      album_tracks_load.album_track_count,
       track_list.clientHeight,
     );
     track_list.style.setProperty("--album_back_track_row_height", `${row_height}px`);
     track_list.style.setProperty("--album_back_track_type_scale", String(type_scale));
-    track_list.replaceChildren(
-      ...album_tracks.map((album_track, track_index) => {
-        const track_row = document.createElement("button");
-        track_row.type = "button";
-        track_row.className = "shelf_album_back_track_row";
-        track_row.title = `Play ${album_track.track_name}`;
-        const track_number = document.createElement("span");
-        track_number.className = "shelf_album_back_track_number";
-        track_number.textContent = `${track_index + 1}.`;
-        const track_name = document.createElement("span");
-        track_name.className = "shelf_album_back_track_name";
-        track_name.textContent = album_track.track_name;
-        const track_duration = document.createElement("span");
-        track_duration.className = "shelf_album_back_track_duration";
-        track_duration.textContent = format_album_track_duration(album_track.duration_ms);
-        track_row.append(track_number, track_name, track_duration);
-        track_row.addEventListener("click", () =>
-          this.options.on_track_click(settled_open_album.saved_album, album_track),
-        );
-        this.track_rows_by_spotify_track_id.set(album_track.spotify_track_id, track_row);
-        return track_row;
-      }),
-    );
-    this.set_now_playing_track(this.now_playing_spotify_track_id);
-    // A list that scrolls fades out its last visible row, until it reaches its end.
     const update_track_list_fade = () =>
       track_list.classList.toggle(
         "shelf_album_back_track_list_more_below",
         track_list.scrollTop + track_list.clientHeight < track_list.scrollHeight - 1,
       );
     track_list.addEventListener("scroll", update_track_list_fade);
+
+    const { stored_album_tracks, remaining_album_tracks } = album_tracks_load;
+    if (stored_album_tracks.length > 0) {
+      track_list.replaceChildren(
+        ...stored_album_tracks.map((album_track, track_index) =>
+          this.create_track_row(settled_open_album.saved_album, album_track, track_index),
+        ),
+      );
+      this.set_now_playing_track(this.now_playing_spotify_track_id);
+      update_track_list_fade();
+    }
+    if (!remaining_album_tracks) {
+      return;
+    }
+    let remaining_tracks: AlbumTrack[];
+    try {
+      remaining_tracks = await remaining_album_tracks;
+    } catch (load_error) {
+      console.warn("Shelf could not read the album's tracks", load_error);
+      const track_list_message = track_list.querySelector(".shelf_album_back_track_list_message");
+      if (this.spin_stage === spin_stage && track_list_message) {
+        track_list_message.textContent = "Shelf could not read the tracks.";
+      }
+      return;
+    }
+    if (this.spin_stage !== spin_stage) {
+      return;
+    }
+    if (stored_album_tracks.length === 0) {
+      track_list.replaceChildren();
+    }
+    track_list.append(
+      ...remaining_tracks.map((album_track, remaining_index) =>
+        this.create_track_row(settled_open_album.saved_album, album_track, stored_album_tracks.length + remaining_index),
+      ),
+    );
+    this.set_now_playing_track(this.now_playing_spotify_track_id);
     update_track_list_fade();
+  }
+
+  private create_track_row(saved_album: SavedAlbum, album_track: AlbumTrack, track_index: number): HTMLButtonElement {
+    const track_row = document.createElement("button");
+    track_row.type = "button";
+    track_row.className = "shelf_album_back_track_row";
+    track_row.title = `Play ${album_track.track_name}`;
+    const track_number = document.createElement("span");
+    track_number.className = "shelf_album_back_track_number";
+    track_number.textContent = `${track_index + 1}.`;
+    const track_name = document.createElement("span");
+    track_name.className = "shelf_album_back_track_name";
+    track_name.textContent = album_track.track_name;
+    const track_duration = document.createElement("span");
+    track_duration.className = "shelf_album_back_track_duration";
+    track_duration.textContent = format_album_track_duration(album_track.duration_ms);
+    track_row.append(track_number, track_name, track_duration);
+    track_row.addEventListener("click", () => this.options.on_track_click(saved_album, album_track));
+    this.track_rows_by_spotify_track_id.set(album_track.spotify_track_id, track_row);
+    return track_row;
   }
 }
 
