@@ -189,7 +189,8 @@ code {
   overflow: hidden;
 }
 
-.shelf_view_canvas_host canvas {
+/* Only the PixiJS canvas, not the canvases that the spin layer draws covers into. */
+.shelf_view_canvas_host > canvas {
   position: absolute;
   inset: 0;
 }
