@@ -338,6 +338,8 @@ code {
   --album_back_album_name_font_size: calc(var(--album_spin_spine_label_font_size) * 1.75);
   --album_back_artist_font_size: calc(var(--album_spin_spine_label_font_size) * 1.15);
   --album_back_track_font_size: var(--album_spin_spine_label_font_size);
+  /* The hover highlight reaches this far past the track number and the length. */
+  --album_back_track_highlight_inset: calc(var(--album_spin_spine_label_font_size) * 0.7);
   /* The track number column: wide enough for "24.", and the gap after it. */
   --album_back_track_number_width: 1.7em;
   --album_back_track_number_gap: 0.5em;
@@ -473,9 +475,12 @@ code {
   opacity: 0.85;
 }
 
+/* The list reaches into the margins by the highlight inset, so the scrolling does not cut off the highlight. */
 .shelf_album_back_track_list {
   flex: 1;
   min-height: 0;
+  margin: 0 calc(-1 * var(--album_back_track_highlight_inset));
+  padding: 0 var(--album_back_track_highlight_inset);
   font-size: var(--album_back_track_font_size);
   overflow-y: auto;
   scrollbar-width: thin;
@@ -489,7 +494,7 @@ code {
 }
 
 .shelf_album_back_track_list:has(.shelf_album_back_track_row:nth-child(19)) {
-  padding-right: calc(var(--album_back_column_gap) * 0.75);
+  padding-right: calc(var(--album_back_track_highlight_inset) + var(--album_back_column_gap) * 0.75);
 }
 
 .shelf_album_back_track_list_message {
@@ -505,11 +510,13 @@ code {
   grid-template-columns: var(--album_back_track_number_width) minmax(0, 1fr) auto;
   column-gap: var(--album_back_track_number_gap);
   align-items: center;
-  width: 100%;
+  /* The row reaches past the text by the highlight inset on each side, so the text stays on the grid. */
+  width: calc(100% + 2 * var(--album_back_track_highlight_inset));
   height: var(--album_back_track_row_height);
-  padding: 0;
+  margin: 0 calc(-1 * var(--album_back_track_highlight_inset));
+  padding: 0 var(--album_back_track_highlight_inset);
   border: none;
-  border-radius: 2px;
+  border-radius: 999px;
   background: none;
   color: inherit;
   font-family: inherit;
