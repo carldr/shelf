@@ -8,7 +8,7 @@ Click the open album to play it in Spotify.
 
 The idea comes from the Spine Music wall display.
 
-![Shelf showing a row of CD spines with one album open](docs/shelf_screenshot.png)
+![Shelf showing a row of CD spines with one album open](docs/shelf_album_front_screenshot.png)
 
 ![The open album turned round, showing its track list with the playing track marked](docs/shelf_album_back_screenshot.png)
 
