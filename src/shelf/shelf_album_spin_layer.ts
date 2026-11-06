@@ -251,7 +251,7 @@ export class ShelfAlbumSpinLayer {
     track_list_message.className = "shelf_album_back_track_list_message";
     track_list_message.textContent = "Loading tracks…";
     track_list.appendChild(track_list_message);
-    // The turn button sits in the top right corner of the back, where the front's top left corner ends up.
+    // The turn button sits in the same spot as the spin button on the front.
     const back_turn_button = document.createElement("button");
     back_turn_button.type = "button";
     back_turn_button.className = "shelf_album_back_turn_button";
