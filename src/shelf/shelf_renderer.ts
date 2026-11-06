@@ -86,6 +86,8 @@ export interface ShelfRendererOptions {
    * If the callback unlocks the shelf, the click or scroll then goes ahead as usual.
    */
   on_shelf_input_while_locked: () => void;
+  /** Receives each vertical scroll over the open centre album's cover, with its `deltaY`: positive scrolls down. */
+  on_vertical_scroll_over_open_album: (delta_y: number) => void;
   /** Receives the duration of each frame, for the performance overlay. */
   on_frame?: (shelf_frame_timing: ShelfFrameTiming) => void;
   /** Dev-only switches that leave out parts of the drawing, to find what limits the frame rate. */
@@ -468,8 +470,12 @@ export class ShelfRenderer {
     canvas.addEventListener(
       "wheel",
       (wheel_event) => {
-        // Only sideways scrolling moves the shelf. Vertical scrolling does nothing.
+        // Only sideways scrolling moves the shelf. Vertical scrolling over the open album goes to the view.
         if (Math.abs(wheel_event.deltaX) <= Math.abs(wheel_event.deltaY)) {
+          if (!this.shelf_input_locked && this.is_over_open_centre_album(wheel_event.offsetX)) {
+            wheel_event.preventDefault();
+            this.options.on_vertical_scroll_over_open_album(wheel_event.deltaY);
+          }
           return;
         }
         wheel_event.preventDefault();
@@ -486,6 +492,20 @@ export class ShelfRenderer {
         this.snap_timer = setTimeout(() => this.snap_to_nearest_album(), WHEEL_SNAP_DELAY_MS);
       },
       { passive: false },
+    );
+  }
+
+  /** Whether `view_x` falls on the open centre album, as the last frame drew it. */
+  private is_over_open_centre_album(view_x: number): boolean {
+    return (
+      this.centre_album_open &&
+      find_drawn_album_index_at(
+        this.drawn_scroll_x + view_x,
+        this.drawn_album_index_range.first_album_index,
+        this.drawn_album_index_range.last_album_index,
+        this.drawn_opening_albums,
+        this.shelf_geometry,
+      ) === this.focused_album_index
     );
   }
 

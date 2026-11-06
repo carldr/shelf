@@ -89,7 +89,9 @@ Shelf appears as an icon in the menu bar, not in the Dock.
 | Click a spine | Brings that album to the middle and opens it. |
 | Click the open album | Plays it in Spotify. |
 | Put CD away | Closes the open album, so the shelf shows only spines. |
-| Click ↻ on the open album | Turns the album round to show its track list. |
+| Click ↻ on the open album, or scroll down over it | Turns the album round to show its track list. |
+| Scroll up over the open album | Puts it away. |
+| Scroll up over the back of the album | Turns it back to its cover. Over a track list that scrolls, it scrolls the list instead. |
 | Click a track | Plays the album from that track in Spotify. |
 | Click the small cover on the back | Turns the album back to its cover. |
 | Click another spine, or scroll sideways, while an album shows its back | Puts that album back at once, then opens the clicked spine or scrolls the shelf. |

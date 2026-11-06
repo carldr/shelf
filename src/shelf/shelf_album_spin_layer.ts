@@ -18,6 +18,10 @@ const ALBUM_NAME_REST_AT_START_MS = 3_000;
 const ALBUM_NAME_FIRST_SCROLL_DELAY_MS = 1_000;
 /** The album name rests at its end this long before it scrolls back. */
 const ALBUM_NAME_REST_AT_END_MS = 1_000;
+/** Scroll events less than this apart belong to one swipe or wheel turn, which turns or puts away the album once. */
+const VERTICAL_SCROLL_GESTURE_GAP_MS = 300;
+/** A vertical scroll smaller than this, such as a resting finger on a trackpad, does not turn the album. */
+const VERTICAL_SCROLL_MINIMUM_DELTA = 3;
 /** An end of the album name with text hidden past it fades out over this width. */
 const ALBUM_NAME_FADE_WIDTH = "1.25em";
 
@@ -32,6 +36,8 @@ export interface ShelfAlbumSpinLayerOptions {
    * In between, this layer draws the album, and the shelf must not move.
    */
   on_spinning_album_change: (spinning_album: SavedAlbum | null) => void;
+  /** Puts the open album away, for a scroll up over its cover. */
+  on_put_album_away: () => void;
 }
 
 type AlbumSpinState = "showing_cover" | "turning_to_back" | "showing_back" | "turning_to_cover";
@@ -49,6 +55,8 @@ export class ShelfAlbumSpinLayer {
   private spin_timer: ReturnType<typeof setTimeout> | undefined;
   private now_playing_spotify_track_id: string | null = null;
   private track_rows_by_spotify_track_id = new Map<string, HTMLElement>();
+  private last_vertical_scroll_ms = Number.NEGATIVE_INFINITY;
+  private vertical_scroll_gesture_acted = false;
 
   constructor(private readonly options: ShelfAlbumSpinLayerOptions) {
     this.spin_button.type = "button";
@@ -58,6 +66,17 @@ export class ShelfAlbumSpinLayer {
     this.spin_button.textContent = "↻";
     this.spin_button.hidden = true;
     this.spin_button.addEventListener("click", () => void this.turn_to_back());
+    // The button sits on the cover, so a vertical scroll over it acts as one over the cover.
+    this.spin_button.addEventListener(
+      "wheel",
+      (wheel_event) => {
+        if (Math.abs(wheel_event.deltaY) > Math.abs(wheel_event.deltaX)) {
+          wheel_event.preventDefault();
+          this.handle_vertical_scroll_over_cover(wheel_event.deltaY);
+        }
+      },
+      { passive: false },
+    );
     options.host_element.appendChild(this.spin_button);
   }
 
@@ -88,6 +107,35 @@ export class ShelfAlbumSpinLayer {
     for (const [row_spotify_track_id, track_row] of this.track_rows_by_spotify_track_id) {
       track_row.classList.toggle("shelf_album_back_track_row_now_playing", row_spotify_track_id === spotify_track_id);
     }
+  }
+
+  /** A vertical scroll over the open cover: down turns the album to its back, up puts it away. */
+  handle_vertical_scroll_over_cover(delta_y: number): void {
+    if (!this.take_vertical_scroll_gesture(delta_y)) {
+      return;
+    }
+    if (delta_y > 0) {
+      void this.turn_to_back();
+    } else {
+      this.options.on_put_album_away();
+    }
+  }
+
+  /**
+   * Notes a vertical scroll event, and returns true if it may act: it is large enough, and no earlier event
+   * of the same swipe or wheel turn has acted. Every event extends the swipe, so trackpad momentum does not act again.
+   */
+  private take_vertical_scroll_gesture(delta_y: number): boolean {
+    const now_ms = performance.now();
+    if (now_ms - this.last_vertical_scroll_ms >= VERTICAL_SCROLL_GESTURE_GAP_MS) {
+      this.vertical_scroll_gesture_acted = false;
+    }
+    this.last_vertical_scroll_ms = now_ms;
+    if (this.vertical_scroll_gesture_acted || Math.abs(delta_y) < VERTICAL_SCROLL_MINIMUM_DELTA) {
+      return false;
+    }
+    this.vertical_scroll_gesture_acted = true;
+    return true;
   }
 
   /** Turns the album from its back to its cover, then gives it back to the shelf. */
@@ -125,7 +173,8 @@ export class ShelfAlbumSpinLayer {
     }
   }
 
-  private async turn_to_back(): Promise<void> {
+  /** Turns the settled open album round to show its back. */
+  async turn_to_back(): Promise<void> {
     const settled_open_album = this.settled_open_album;
     if (!settled_open_album || this.spin_stage) {
       return;
@@ -187,10 +236,24 @@ export class ShelfAlbumSpinLayer {
       "wheel",
       (wheel_event) => {
         // A sideways scroll puts the album back at once, so the scrolls after it move the shelf.
-        // A vertical scroll is left to the track list.
         if (Math.abs(wheel_event.deltaX) > Math.abs(wheel_event.deltaY)) {
           wheel_event.preventDefault();
           this.put_album_back_at_once();
+          return;
+        }
+        // A scroll up turns the album to its cover, unless it is over a track list that scrolls.
+        const track_list = spin_stage.querySelector<HTMLElement>(".shelf_album_back_track_list");
+        const over_scrolling_track_list =
+          track_list !== null &&
+          track_list.scrollHeight > track_list.clientHeight &&
+          wheel_event.target instanceof Node &&
+          track_list.contains(wheel_event.target);
+        if (over_scrolling_track_list) {
+          return;
+        }
+        wheel_event.preventDefault();
+        if (wheel_event.deltaY < 0 && this.take_vertical_scroll_gesture(wheel_event.deltaY)) {
+          this.turn_to_cover();
         }
       },
       { passive: false },

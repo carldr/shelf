@@ -122,6 +122,7 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
     load_cover_bitmap: options.load_cover_bitmap,
     load_album_tracks: options.load_album_tracks,
     on_track_click: options.on_track_click,
+    on_put_album_away: () => shelf_renderer.close_centre_album(),
     // While the album turns or shows its back, the layer draws it and the shelf stays still.
     on_spinning_album_change: (spinning_album) => {
       shelf_renderer.set_hidden_album(spinning_album?.spotify_album_id ?? null);
@@ -145,6 +146,8 @@ export async function create_shelf_view(container: HTMLElement, options: ShelfVi
     on_settled_open_album_change: (settled_open_album) => album_spin_layer.set_settled_open_album(settled_open_album),
     // A click or sideways scroll on the shelf puts a turned album back at once, and then goes ahead as usual.
     on_shelf_input_while_locked: () => album_spin_layer.put_album_back_at_once(),
+    // Scrolling down over the open cover turns it to its back; scrolling up puts it away.
+    on_vertical_scroll_over_open_album: (delta_y) => album_spin_layer.handle_vertical_scroll_over_cover(delta_y),
     on_frame: STRESS_TEST_ALBUM_COUNT ? (shelf_frame_timing) => shelf_frame_timings.push(shelf_frame_timing) : undefined,
     stress_test_switches: STRESS_TEST_SWITCHES,
   });
