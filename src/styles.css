@@ -262,8 +262,9 @@ code {
   margin: 0;
 }
 
-/* The spin button in the top left corner of the open cover. */
-.shelf_album_spin_button {
+/* The spin button in the top left corner of the open cover, and the turn button in the top right corner of its back. */
+.shelf_album_spin_button,
+.shelf_album_back_turn_button {
   position: absolute;
   z-index: 1;
   width: 28px;
@@ -278,7 +279,13 @@ code {
   cursor: pointer;
 }
 
-.shelf_album_spin_button:hover {
+.shelf_album_back_turn_button {
+  top: 8px;
+  right: 8px;
+}
+
+.shelf_album_spin_button:hover,
+.shelf_album_back_turn_button:hover {
   background: rgba(0, 0, 0, 0.75);
 }
 
@@ -400,12 +407,14 @@ code {
   height: 100%;
 }
 
+/* The header keeps clear of the turn button: 28px wide, 8px in from the edge, with a 6px gap. */
 .shelf_album_back_header {
   display: flex;
   flex: none;
   align-items: center;
   gap: var(--album_back_column_gap);
   margin-bottom: var(--album_back_header_gap);
+  padding-right: max(0px, calc(42px - var(--album_back_padding)));
 }
 
 .shelf_album_back_thumbnail {

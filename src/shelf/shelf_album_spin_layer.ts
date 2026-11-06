@@ -251,7 +251,15 @@ export class ShelfAlbumSpinLayer {
     track_list_message.className = "shelf_album_back_track_list_message";
     track_list_message.textContent = "Loading tracks…";
     track_list.appendChild(track_list_message);
-    back_face.append(back_header, track_list);
+    // The turn button sits in the top right corner of the back, where the front's top left corner ends up.
+    const back_turn_button = document.createElement("button");
+    back_turn_button.type = "button";
+    back_turn_button.className = "shelf_album_back_turn_button";
+    back_turn_button.title = "Turn back to the cover";
+    back_turn_button.setAttribute("aria-label", "Turn back to the cover");
+    back_turn_button.textContent = "↻";
+    back_turn_button.addEventListener("click", () => this.turn_to_cover());
+    back_face.append(back_header, track_list, back_turn_button);
 
     spin_box.append(front_face, spine_face, edge_face, back_face);
     spin_stage.appendChild(spin_box);
