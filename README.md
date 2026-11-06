@@ -55,8 +55,11 @@ Set your own bundle identifier. The repository uses `com.example.shelf`; your co
 
 1. Copy `src-tauri/tauri.local.conf.example.json` to `src-tauri/tauri.local.conf.json`.
 2. Change `identifier` to a reverse domain name you own, such as `com.yourname.shelf`.
+3. Change `signingIdentity` to a code signing certificate of yours. `security find-identity -v -p codesigning` lists them. Remove the `bundle` block if you have none.
 
 `pnpm tauri dev` and `pnpm tauri build` merge that file over `src-tauri/tauri.conf.json`.
+`pnpm tauri dev` also signs each dev build with `signingIdentity`, so that the Keychain remembers "Always Allow" across rebuilds.
+Without it, the Keychain asks for the refresh token again after each Rust rebuild.
 
 Then install the project's packages and start Shelf:
 
@@ -157,8 +160,10 @@ src-tauri/src/                         Rust
   spotify_refresh_token_keychain.rs    Keychain storage of the refresh token
   album_cover_thumbnail_and_colour.rs  Cover thumbnails and spine colours
 src-tauri/tauri.conf.json              App and window configuration
-src-tauri/tauri.local.conf.example.json  Template for your own bundle identifier
+src-tauri/tauri.local.conf.example.json  Template for your own bundle identifier and signing identity
+src-tauri/.cargo/config.toml           Starts dev and test binaries through the signing script
 scripts/run_tauri_with_local_config.mjs  Adds your local config to pnpm tauri dev and build
+scripts/sign_and_run_shelf_dev_binary.sh  Signs each dev build with your identity, then starts it
 ```
 
 ## Licence

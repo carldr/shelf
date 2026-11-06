@@ -1,3 +1,8 @@
 {
-  "identifier": "com.yourname.shelf"
+  "identifier": "com.yourname.shelf",
+  "bundle": {
+    "macOS": {
+      "signingIdentity": "Apple Development: Your Name (TEAMID1234)"
+    }
+  }
 }

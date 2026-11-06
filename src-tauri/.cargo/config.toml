@@ -1,0 +1,7 @@
+# `cargo run` and `cargo test` start each binary through this script, which signs it first.
+# The path is relative to src-tauri, the directory that holds .cargo.
+[target.aarch64-apple-darwin]
+runner = "../scripts/sign_and_run_shelf_dev_binary.sh"
+
+[target.x86_64-apple-darwin]
+runner = "../scripts/sign_and_run_shelf_dev_binary.sh"

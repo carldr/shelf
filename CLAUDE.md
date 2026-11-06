@@ -18,7 +18,9 @@ Shelf is a Tauri 2 macOS menu bar app. It shows the user's saved Spotify albums 
 | `VITE_SHELF_STRESS_TEST_ALBUM_COUNT=1200 pnpm tauri dev` | Repeats the library to 1,200 albums and shows frame times. Dev builds only. |
 
 Use `pnpm tauri`, not `tauri` directly. `scripts/run_tauri_with_local_config.mjs` merges `src-tauri/tauri.local.conf.json` over `tauri.conf.json` for `dev` and `build`.
-The local file holds the bundle identifier and is ignored by git. The committed identifier is `com.example.shelf`.
+The local file holds the bundle identifier and signing identity, and is ignored by git. The committed identifier is `com.example.shelf`.
+`src-tauri/.cargo/config.toml` starts every `cargo run` and `cargo test` binary through `scripts/sign_and_run_shelf_dev_binary.sh`.
+The script signs it with that identity, so the Keychain keeps "Always Allow" across rebuilds.
 
 ## Architecture
 
