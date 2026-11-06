@@ -112,7 +112,7 @@ Shelf keeps its data in `~/Library/Application Support/<bundle identifier>/`:
 | File | Contents |
 |---|---|
 | `app_settings.json` | Your Client ID, sort order, whether demo mode is on, and whether Shelf starts at login. |
-| `albums.json` | The synced library. |
+| `albums.json` | The synced library, with each album's track list. |
 | `covers/` | The cached covers and their thumbnails. |
 
 The Keychain item has the bundle identifier as its service, and the account `spotify_refresh_token`.
@@ -136,7 +136,7 @@ src/                                   TypeScript frontend
     saved_albums_sync.ts               Fetches the library and caches covers
     saved_albums_library_store.ts      albums.json and its 6-hour staleness
     album_cover_cache.ts               Cover downloads and loading
-    album_tracks.ts                    Track lists from GET /albums/{id}/tracks
+    album_tracks.ts                    Track lists over 50 tracks, from GET /albums/{id}/tracks
     saved_album_sort_order.ts          Recently added, artist A–Z, album A–Z, release year
   shelf/
     shelf_layout.ts                    Spine and cover positions, scrolling, hit testing

@@ -121,6 +121,10 @@ function load_album_tracks(saved_album: SavedAlbum): Promise<AlbumTrack[]> {
   if (app_settings.demo_mode_enabled) {
     return Promise.resolve(generate_demo_album_tracks(saved_album));
   }
+  // The sync stores the tracks of albums up to 50 tracks long, so only longer albums are read now.
+  if (saved_album.album_tracks) {
+    return Promise.resolve(saved_album.album_tracks);
+  }
   if (!connected_spotify_account) {
     return Promise.reject(new Error("No Spotify account is connected."));
   }

@@ -1,3 +1,5 @@
+import { convert_spotify_simplified_track, type AlbumTrack, type SpotifyAlbumTracksPage } from "./album_tracks";
+
 /** One album in the user's Spotify library, as Shelf stores it in albums.json. */
 export interface SavedAlbum {
   spotify_album_id: string;
@@ -12,6 +14,11 @@ export interface SavedAlbum {
   cover_image_url: string | null;
   /** "#rrggbb", sampled once from the cached cover. Null until the cover is cached. */
   cover_dominant_colour: string | null;
+  /**
+   * Every track, from the sync. GET /me/albums gives the first 50 tracks of each album, so this is null
+   * for a longer album, and the back of the album reads its tracks when it turns.
+   */
+  album_tracks: AlbumTrack[] | null;
 }
 
 /** An open cover is about 320 pt, which is 640 px on a Retina display. */
@@ -27,6 +34,7 @@ export interface SpotifySavedAlbumItem {
     release_date: string;
     artists: { name: string }[];
     images: { url: string; width: number | null; height: number | null }[];
+    tracks?: SpotifyAlbumTracksPage;
   };
 }
 
@@ -42,6 +50,10 @@ export function convert_spotify_saved_album_item(spotify_saved_album_item: Spoti
     added_at: spotify_saved_album_item.added_at,
     cover_image_url: choose_cover_image_url(spotify_album.images),
     cover_dominant_colour: null,
+    album_tracks:
+      spotify_album.tracks && spotify_album.tracks.items.length === spotify_album.tracks.total
+        ? spotify_album.tracks.items.map(convert_spotify_simplified_track)
+        : null,
   };
 }
 

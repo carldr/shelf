@@ -11,9 +11,28 @@ export interface AlbumTrack {
 /** Development Mode apps get at most 10 items per page from GET /me/albums, so the track list uses the same size. */
 const ALBUM_TRACKS_PAGE_SIZE = 10;
 
-interface SpotifyAlbumTracksPage {
-  items: { id: string; uri: string; name: string; duration_ms: number }[];
+/** A track in GET /albums/{id}/tracks, and in the album of each GET /me/albums item, reduced to the fields Shelf reads. */
+export interface SpotifySimplifiedTrack {
+  id: string;
+  uri: string;
+  name: string;
+  duration_ms: number;
+}
+
+/** A page of an album's tracks. */
+export interface SpotifyAlbumTracksPage {
+  items: SpotifySimplifiedTrack[];
   next: string | null;
+  total: number;
+}
+
+export function convert_spotify_simplified_track(spotify_track: SpotifySimplifiedTrack): AlbumTrack {
+  return {
+    spotify_track_id: spotify_track.id,
+    spotify_track_uri: spotify_track.uri,
+    track_name: spotify_track.name,
+    duration_ms: spotify_track.duration_ms,
+  };
 }
 
 /** Reads every page of GET /albums/{id}/tracks, following each page's `next` URL. */
@@ -26,14 +45,7 @@ export async function fetch_spotify_album_tracks(
     `/albums/${encodeURIComponent(spotify_album_id)}/tracks?limit=${ALBUM_TRACKS_PAGE_SIZE}&offset=0`;
   while (next_page_url) {
     const album_tracks_page: SpotifyAlbumTracksPage = await spotify_web_api_client.get_json(next_page_url);
-    album_tracks.push(
-      ...album_tracks_page.items.map((spotify_track) => ({
-        spotify_track_id: spotify_track.id,
-        spotify_track_uri: spotify_track.uri,
-        track_name: spotify_track.name,
-        duration_ms: spotify_track.duration_ms,
-      })),
-    );
+    album_tracks.push(...album_tracks_page.items.map(convert_spotify_simplified_track));
     next_page_url = album_tracks_page.next;
   }
   return album_tracks;

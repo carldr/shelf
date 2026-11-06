@@ -65,6 +65,8 @@ export function generate_demo_saved_albums(): SavedAlbum[] {
       release_year: 1965 + Math.floor(random() * 61),
       added_at: new Date(newest_added_time_ms - album_index * 3 * 24 * 60 * 60 * 1000).toISOString(),
       cover_image_url: null,
+      // Demo track lists are generated when an album turns, by generate_demo_album_tracks.
+      album_tracks: null,
       cover_dominant_colour: hsl_to_hex(Math.floor(random() * 360), 0.35 + random() * 0.5, 0.2 + random() * 0.55),
     };
   });

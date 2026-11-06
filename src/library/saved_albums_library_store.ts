@@ -11,8 +11,9 @@ const SAVED_ALBUMS_LIBRARY_MAXIMUM_AGE_MS = 6 * 60 * 60 * 1000;
  * 2: covers are 640 px and cached files are named after the image ID.
  * 3: covers are downloaded at 2000 px where the CDN has that size.
  * 4: each cover also has a 256 px thumbnail.
+ * 5: each album holds its track list.
  */
-const SAVED_ALBUMS_LIBRARY_FORMAT_VERSION = 4;
+const SAVED_ALBUMS_LIBRARY_FORMAT_VERSION = 5;
 
 /** The contents of albums.json in the app data directory. */
 export interface SavedAlbumsLibrary {

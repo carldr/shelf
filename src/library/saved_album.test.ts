@@ -28,6 +28,7 @@ function create_saved_album(overrides: Partial<SavedAlbum>): SavedAlbum {
     added_at: "2024-01-01T00:00:00Z",
     cover_image_url: null,
     cover_dominant_colour: null,
+    album_tracks: null,
     ...overrides,
   };
 }
@@ -53,6 +54,21 @@ describe("convert_spotify_saved_album_item", () => {
       cover_image_url: "https://i.scdn.co/640",
       cover_dominant_colour: null,
     });
+  });
+
+  it("keeps the album's tracks when the response holds all of them, and null when it does not", () => {
+    const spotify_track = { id: "t1", uri: "spotify:track:t1", name: "Opening", duration_ms: 187_000 };
+    const complete_album = convert_spotify_saved_album_item(
+      create_spotify_saved_album_item("a1", { tracks: { items: [spotify_track], next: null, total: 1 } }),
+    );
+    expect(complete_album.album_tracks).toEqual([
+      { spotify_track_id: "t1", spotify_track_uri: "spotify:track:t1", track_name: "Opening", duration_ms: 187_000 },
+    ]);
+    const long_album = convert_spotify_saved_album_item(
+      create_spotify_saved_album_item("a2", { tracks: { items: [spotify_track], next: "https://next", total: 57 } }),
+    );
+    expect(long_album.album_tracks).toBeNull();
+    expect(convert_spotify_saved_album_item(create_spotify_saved_album_item("a3")).album_tracks).toBeNull();
   });
 
   it("gives a null year for Spotify's 0000 release date and a null cover for no images", () => {
