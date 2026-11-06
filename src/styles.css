@@ -326,9 +326,20 @@ code {
   transform: translateZ(calc(var(--album_spin_depth) / 2));
 }
 
+/*
+ * The back of the album uses the spine's type: the same family and colours, sizes from the spine label size,
+ * and the artist in bold next to the album name in regular. Every space is a share of the cover size.
+ */
 .shelf_album_spin_back_face {
+  --album_back_padding: calc(var(--album_spin_cover_size) * 0.075);
+  --album_back_thumbnail_size: calc(var(--album_spin_cover_size) * 0.13);
+  --album_back_column_gap: calc(var(--album_spin_cover_size) * 0.04);
+  --album_back_header_gap: calc(var(--album_spin_cover_size) * 0.05);
+  --album_back_title_font_size: calc(var(--album_spin_spine_label_font_size) * 1.25);
+  --album_back_track_font_size: calc(var(--album_spin_spine_label_font_size) * 1.1);
   display: flex;
   flex-direction: column;
+  padding: var(--album_back_padding);
   background: var(--album_spin_spine_colour);
   color: var(--album_spin_label_colour);
   font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
@@ -387,20 +398,25 @@ code {
   display: flex;
   flex: none;
   align-items: center;
-  gap: 10px;
+  gap: var(--album_back_column_gap);
+  margin-bottom: var(--album_back_header_gap);
 }
 
 .shelf_album_back_thumbnail {
   flex: none;
+  width: var(--album_back_thumbnail_size);
+  height: var(--album_back_thumbnail_size);
   padding: 0;
   border: none;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+  border-radius: 0;
   background: none;
   cursor: pointer;
 }
 
 .shelf_album_back_titles {
   min-width: 0;
+  font-size: var(--album_back_title_font_size);
+  line-height: 1.35;
 }
 
 .shelf_album_back_artist,
@@ -408,16 +424,13 @@ code {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.25;
 }
 
 .shelf_album_back_artist {
-  font-size: 13px;
   font-weight: 700;
 }
 
 .shelf_album_back_album_name {
-  font-size: 12px;
   opacity: 0.85;
 }
 
@@ -425,58 +438,60 @@ code {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  border-top: 1px solid color-mix(in srgb, var(--album_spin_label_colour) 25%, transparent);
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--album_spin_label_colour) 30%, transparent) transparent;
 }
 
 .shelf_album_back_track_list_message {
-  margin: 8px 2px;
-  font-size: 11px;
-  opacity: 0.7;
+  margin: 0;
+  padding-left: calc(var(--album_back_thumbnail_size) + var(--album_back_column_gap));
+  font-size: var(--album_back_track_font_size);
+  opacity: 0.6;
 }
 
+/* Track names line up with the artist and album name; the numbers end where the thumbnail ends. */
 .shelf_album_back_track_row {
-  position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: var(--album_back_thumbnail_size) minmax(0, 1fr) auto;
+  column-gap: var(--album_back_column_gap);
   align-items: center;
-  gap: 8px;
   width: 100%;
-  padding: 0 2px 0 8px;
+  height: var(--album_back_track_row_height);
+  padding: 0;
   border: none;
-  border-radius: 3px;
+  border-radius: 2px;
   background: none;
   color: inherit;
   font-family: inherit;
+  font-size: calc(var(--album_back_track_font_size) * var(--album_back_track_type_scale, 1));
   text-align: left;
   cursor: pointer;
 }
 
 .shelf_album_back_track_row:hover {
-  background: color-mix(in srgb, var(--album_spin_label_colour) 14%, transparent);
+  background: color-mix(in srgb, var(--album_spin_label_colour) 8%, transparent);
 }
 
 .shelf_album_back_track_number {
-  flex: none;
-  min-width: 1.6em;
-  text-align: right;
-  opacity: 0.6;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  opacity: 0.5;
   font-variant-numeric: tabular-nums;
 }
 
 .shelf_album_back_track_name {
-  flex: 1;
-  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .shelf_album_back_track_duration {
-  flex: none;
-  opacity: 0.6;
+  opacity: 0.5;
   font-variant-numeric: tabular-nums;
 }
 
-/* The playing track: the green bar used under the playing album, and bold text. */
+/* The playing track: the green bar used under the playing album, next to its number, and bold text. */
 .shelf_album_back_track_row_now_playing {
   font-weight: 700;
 }
@@ -485,13 +500,11 @@ code {
   opacity: 1;
 }
 
-.shelf_album_back_track_row_now_playing::before {
+.shelf_album_back_track_row_now_playing .shelf_album_back_track_number::before {
   content: "";
-  position: absolute;
-  left: 0;
-  top: 15%;
-  bottom: 15%;
-  width: 4px;
+  width: 3px;
+  height: 1em;
+  margin-right: 0.5em;
   border-radius: 1px;
   background: var(--shelf_accent_colour);
 }

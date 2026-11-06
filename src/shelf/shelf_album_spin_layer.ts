@@ -8,11 +8,8 @@ import { choose_spine_label_colour, parse_hex_colour } from "./shelf_spine_label
 const ALBUM_SPIN_DURATION_MS = 400;
 /** The spin button sits this far in from the top left corner of the cover. */
 const SPIN_BUTTON_INSET = 8;
-const ALBUM_BACK_PADDING = 10;
-const ALBUM_BACK_THUMBNAIL_SIZE = 40;
-const ALBUM_BACK_HEADER_GAP = 8;
-/** The rule and space between the header and the track list. */
-const ALBUM_BACK_TRACK_LIST_TOP_SPACE = 5;
+/** The thumbnail on the back, as a share of the cover size. It matches `--album_back_thumbnail_size` in styles.css. */
+const ALBUM_BACK_THUMBNAIL_SIZE_TO_COVER_SIZE_RATIO = 0.13;
 const FALLBACK_SPINE_COLOUR = "#808080";
 
 export interface ShelfAlbumSpinLayerOptions {
@@ -213,17 +210,16 @@ export class ShelfAlbumSpinLayer {
 
     const back_face = document.createElement("div");
     back_face.className = "shelf_album_spin_face shelf_album_spin_back_face";
-    back_face.style.padding = `${ALBUM_BACK_PADDING}px`;
     const back_header = document.createElement("div");
     back_header.className = "shelf_album_back_header";
-    back_header.style.marginBottom = `${ALBUM_BACK_HEADER_GAP}px`;
     const back_thumbnail = document.createElement("button");
     back_thumbnail.type = "button";
     back_thumbnail.className = "shelf_album_back_thumbnail";
     back_thumbnail.title = "Turn back to the cover";
     back_thumbnail.setAttribute("aria-label", "Turn back to the cover");
-    back_thumbnail.style.width = back_thumbnail.style.height = `${ALBUM_BACK_THUMBNAIL_SIZE}px`;
-    back_thumbnail.appendChild(create_cover_canvas(cover_bitmap, ALBUM_BACK_THUMBNAIL_SIZE));
+    back_thumbnail.appendChild(
+      create_cover_canvas(cover_bitmap, cover_size * ALBUM_BACK_THUMBNAIL_SIZE_TO_COVER_SIZE_RATIO),
+    );
     back_thumbnail.addEventListener("click", () => this.turn_to_cover());
     const back_titles = document.createElement("div");
     back_titles.className = "shelf_album_back_titles";
@@ -237,7 +233,6 @@ export class ShelfAlbumSpinLayer {
     back_header.append(back_thumbnail, back_titles);
     const track_list = document.createElement("div");
     track_list.className = "shelf_album_back_track_list";
-    track_list.style.paddingTop = `${ALBUM_BACK_TRACK_LIST_TOP_SPACE - 1}px`;
     const track_list_message = document.createElement("p");
     track_list_message.className = "shelf_album_back_track_list_message";
     track_list_message.textContent = "Loading tracks…";
@@ -274,20 +269,18 @@ export class ShelfAlbumSpinLayer {
     if (this.spin_stage !== spin_stage) {
       return;
     }
-    const track_list_height =
-      settled_open_album.cover_size -
-      2 * ALBUM_BACK_PADDING -
-      ALBUM_BACK_THUMBNAIL_SIZE -
-      ALBUM_BACK_HEADER_GAP -
-      ALBUM_BACK_TRACK_LIST_TOP_SPACE;
-    const { row_height, font_size } = compute_album_back_track_row_layout(album_tracks.length, track_list_height);
+    // styles.css sets the list's height from the cover size, so it is measured here, not computed again.
+    const { row_height, type_scale } = compute_album_back_track_row_layout(
+      album_tracks.length,
+      track_list.clientHeight,
+    );
+    track_list.style.setProperty("--album_back_track_row_height", `${row_height}px`);
+    track_list.style.setProperty("--album_back_track_type_scale", String(type_scale));
     track_list.replaceChildren(
       ...album_tracks.map((album_track, track_index) => {
         const track_row = document.createElement("button");
         track_row.type = "button";
         track_row.className = "shelf_album_back_track_row";
-        track_row.style.height = `${row_height}px`;
-        track_row.style.fontSize = `${font_size}px`;
         track_row.title = `Play ${album_track.track_name}`;
         const track_number = document.createElement("span");
         track_number.className = "shelf_album_back_track_number";
