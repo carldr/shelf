@@ -70,7 +70,7 @@ The Keychain holds the refresh token. The access token stays in memory only.
 
 Tests sit next to their source as `*.test.ts`. They do not use `vi.mock`.
 Functions that touch timers, the network or Tauri take those as parameters, for example `wait_milliseconds` and `launch_spotify_app` in `play_spotify_album`. Tests pass fakes.
-Rust tests are `#[cfg(test)]` modules in `oauth_loopback_callback_server.rs`, `album_cover_thumbnail_and_colour.rs` and `tray_icon_and_window.rs`.
+Rust tests are `#[cfg(test)]` modules in `oauth_loopback_callback_server.rs` and `album_cover_thumbnail_and_colour.rs`.
 
 ## Conventions
 

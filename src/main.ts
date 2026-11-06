@@ -30,9 +30,6 @@ import { SpotifyWebApiClient } from "./spotify/spotify_web_api_client";
 import { create_shelf_view, type ShelfView } from "./views/shelf_view";
 import { render_spotify_connection_view } from "./views/spotify_connection_view";
 
-// The window starts at its full height, hidden. It opens from 1 pixel high, and the page keeps this height meanwhile.
-document.documentElement.style.setProperty("--shelf_window_full_height", `${window.innerHeight}px`);
-
 const shelf_view_root = document.getElementById("shelf_view_root")!;
 const spotify_connection_view_root = document.getElementById("spotify_connection_view_root")!;
 
