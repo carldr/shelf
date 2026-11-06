@@ -7,10 +7,11 @@ describe("compute_album_back_track_row_layout", () => {
     expect(compute_album_back_track_row_layout(9, 300).row_height).toBe(20);
   });
 
-  it("shrinks the rows and type so that 16 to 18 tracks fit", () => {
+  it("shrinks the rows so that 16 to 18 tracks fit, and the type by half as much", () => {
     const squeezed_row_layout = compute_album_back_track_row_layout(18, 300);
     expect(squeezed_row_layout.row_height * 18).toBeCloseTo(300);
-    expect(squeezed_row_layout.type_scale).toBeCloseTo(15 / 18);
+    expect(squeezed_row_layout.type_scale).toBeCloseTo(1 - (1 - 15 / 18) / 2);
+    expect(compute_album_back_track_row_layout(16, 300).row_height * 16).toBeCloseTo(300);
   });
 
   it("keeps the designed row height above 18 tracks, so the list scrolls", () => {

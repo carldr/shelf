@@ -229,7 +229,7 @@ export class ShelfAlbumSpinLayer {
     const back_album_name = document.createElement("div");
     back_album_name.className = "shelf_album_back_album_name";
     back_album_name.textContent = saved_album.album_name;
-    back_titles.append(back_artist, back_album_name);
+    back_titles.append(back_album_name, back_artist);
     back_header.append(back_thumbnail, back_titles);
     const track_list = document.createElement("div");
     track_list.className = "shelf_album_back_track_list";
@@ -300,6 +300,14 @@ export class ShelfAlbumSpinLayer {
       }),
     );
     this.set_now_playing_track(this.now_playing_spotify_track_id);
+    // A list that scrolls fades out its last visible row, until it reaches its end.
+    const update_track_list_fade = () =>
+      track_list.classList.toggle(
+        "shelf_album_back_track_list_more_below",
+        track_list.scrollTop + track_list.clientHeight < track_list.scrollHeight - 1,
+      );
+    track_list.addEventListener("scroll", update_track_list_fade);
+    update_track_list_fade();
   }
 }
 

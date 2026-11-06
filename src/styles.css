@@ -327,16 +327,19 @@ code {
 }
 
 /*
- * The back of the album uses the spine's type: the same family and colours, sizes from the spine label size,
- * and the artist in bold next to the album name in regular. Every space is a share of the cover size.
+ * The back of the album uses the spine's type: the same family and label colour, and sizes from the spine label size.
+ * The album name leads in bold; the track names are bold at the spine label size. Every space is a share of the cover size.
  */
 .shelf_album_spin_back_face {
   --album_back_padding: calc(var(--album_spin_cover_size) * 0.075);
   --album_back_thumbnail_size: calc(var(--album_spin_cover_size) * 0.13);
   --album_back_column_gap: calc(var(--album_spin_cover_size) * 0.04);
   --album_back_header_gap: calc(var(--album_spin_cover_size) * 0.05);
-  --album_back_title_font_size: calc(var(--album_spin_spine_label_font_size) * 1.25);
-  --album_back_track_font_size: calc(var(--album_spin_spine_label_font_size) * 1.1);
+  --album_back_album_name_font_size: calc(var(--album_spin_spine_label_font_size) * 1.5);
+  --album_back_artist_font_size: calc(var(--album_spin_spine_label_font_size) * 1.15);
+  --album_back_track_font_size: var(--album_spin_spine_label_font_size);
+  /* The track number column: wide enough for "24." */
+  --album_back_track_number_width: 2.2em;
   display: flex;
   flex-direction: column;
   padding: var(--album_back_padding);
@@ -415,44 +418,60 @@ code {
 
 .shelf_album_back_titles {
   min-width: 0;
-  font-size: var(--album_back_title_font_size);
-  line-height: 1.35;
+  line-height: 1.3;
 }
 
-.shelf_album_back_artist,
-.shelf_album_back_album_name {
+.shelf_album_back_album_name,
+.shelf_album_back_artist {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.shelf_album_back_artist {
+.shelf_album_back_album_name {
+  font-size: var(--album_back_album_name_font_size);
   font-weight: 700;
 }
 
-.shelf_album_back_album_name {
+.shelf_album_back_artist {
+  font-size: var(--album_back_artist_font_size);
   opacity: 0.85;
 }
 
+/* The list reaches 1em into the left margin, so the green bar there is not cut off by the scrolling. */
 .shelf_album_back_track_list {
   flex: 1;
   min-height: 0;
+  margin-left: -1em;
+  padding-left: 1em;
+  font-size: var(--album_back_track_font_size);
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--album_spin_label_colour) 30%, transparent) transparent;
 }
 
+/* A list with more tracks below fades out its last visible row. The gutter keeps the scrollbar clear of the durations. */
+.shelf_album_back_track_list_more_below {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--album_back_track_row_height)), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--album_back_track_row_height)), transparent);
+}
+
+.shelf_album_back_track_list:has(.shelf_album_back_track_row:nth-child(19)) {
+  padding-right: calc(var(--album_back_column_gap) * 0.75);
+}
+
 .shelf_album_back_track_list_message {
   margin: 0;
-  padding-left: calc(var(--album_back_thumbnail_size) + var(--album_back_column_gap));
+  padding-left: var(--album_back_track_number_width);
   font-size: var(--album_back_track_font_size);
   opacity: 0.6;
 }
 
-/* Track names line up with the artist and album name; the numbers end where the thumbnail ends. */
+/* The numbers start at the margin, and the names at a fixed indent after them. */
 .shelf_album_back_track_row {
+  position: relative;
   display: grid;
-  grid-template-columns: var(--album_back_thumbnail_size) minmax(0, 1fr) auto;
+  grid-template-columns: var(--album_back_track_number_width) minmax(0, 1fr) auto;
   column-gap: var(--album_back_column_gap);
   align-items: center;
   width: 100%;
@@ -472,39 +491,26 @@ code {
   background: color-mix(in srgb, var(--album_spin_label_colour) 8%, transparent);
 }
 
-.shelf_album_back_track_number {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  opacity: 0.5;
+.shelf_album_back_track_number,
+.shelf_album_back_track_duration {
   font-variant-numeric: tabular-nums;
 }
 
 .shelf_album_back_track_name {
+  font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.shelf_album_back_track_duration {
-  opacity: 0.5;
-  font-variant-numeric: tabular-nums;
-}
-
-/* The playing track: the green bar used under the playing album, next to its number, and bold text. */
-.shelf_album_back_track_row_now_playing {
-  font-weight: 700;
-}
-
-.shelf_album_back_track_row_now_playing .shelf_album_back_track_number {
-  opacity: 1;
-}
-
-.shelf_album_back_track_row_now_playing .shelf_album_back_track_number::before {
+/* The playing track: the green bar used under the playing album, in the margin just before its number. */
+.shelf_album_back_track_row_now_playing::before {
   content: "";
+  position: absolute;
+  left: -0.75em;
+  top: calc(50% - 0.5em);
   width: 3px;
   height: 1em;
-  margin-right: 0.5em;
   border-radius: 1px;
   background: var(--shelf_accent_colour);
 }
